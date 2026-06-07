@@ -1,0 +1,9 @@
+; UE4SS mod enable list
+; Copy this file to <game>/TheIsle/Binaries/Win64/Mods/mods.txt
+; Load order matters — CommandBridge must load before any sub-mods.
+
+CommandBridge : 1
+DinoStorage : 1
+SkinMod : 1
+BodyDrop : 1
+PrimeNotify : 1

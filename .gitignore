@@ -1,0 +1,10 @@
+.env
+.idea/
+.vscode/
+
+.command-hash
+
+docker/
+
+bot/dist
+bot/node_modules
