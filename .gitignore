@@ -8,3 +8,4 @@ docker/
 
 bot/dist
 bot/node_modules
+bot/src/db/migrations/
