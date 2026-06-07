@@ -90,6 +90,9 @@ export default new Command({
 
 			await interaction.deferReply();
 
+			// If a target user is given, look up their Steam64 and let the Lua mod
+			// resolve their in-game position. Coordinates are still sent as placeholders
+			// so the arg positions stay consistent; the mod ignores them when targetSteam is set.
 			let targetSteam = "";
 			if (targetUser) {
 				const steam = await getSteam64(targetUser.id);
@@ -102,18 +105,19 @@ export default new Command({
 
 			const adminSteam = (await getSteam64(interaction.user.id)) ?? "admin";
 
+			const args = [
+				"spawn",
+				species,
+				String(x),
+				String(y),
+				String(z),
+				String(growthPct / 100),
+				targetSteam, // empty string = use coordinates; non-empty = look up player location
+			];
+
 			let result;
 			try {
-				result = await client.ipc.sendAndAwaitSubMod("bodydrop", targetSteam || adminSteam, {
-					args: [
-						"spawn",
-						species,
-						String(x),
-						String(y),
-						String(z),
-						String(growthPct / 100),
-					],
-				});
+				result = await client.ipc.sendAndAwaitSubMod("bodydrop", adminSteam, { args });
 			} catch (e) {
 				await interaction.editReply(
 					`⚠️ IPC error: ${e instanceof Error ? e.message : String(e)}`,
@@ -133,6 +137,10 @@ export default new Command({
 				success: result.ok,
 			});
 
+			const locationLabel = targetSteam
+				? `near ${targetUser?.username ?? targetSteam}`
+				: `${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)}`;
+
 			await interaction.editReply({
 				embeds: [
 					new EmbedBuilder()
@@ -141,11 +149,7 @@ export default new Command({
 						.addFields(
 							{ name: "Species", value: species, inline: true },
 							{ name: "Growth", value: `${growthPct}%`, inline: true },
-							{
-								name: "Location",
-								value: `${Math.round(x)}, ${Math.round(y)}, ${Math.round(z)}`,
-								inline: true,
-							},
+							{ name: targetSteam ? "Near Player" : "Location", value: locationLabel, inline: true },
 						)
 						.setDescription(result.msg || (result.ok ? "Corpse has been spawned." : "Unknown error")),
 				],
