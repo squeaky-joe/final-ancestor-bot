@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath } from "node:url";
 import { REST, Routes } from "discord.js";
 import { config } from "../config.js";
 import type { Command } from "../classes/Command.js";
