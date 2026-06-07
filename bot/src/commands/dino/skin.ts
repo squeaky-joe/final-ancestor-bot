@@ -21,7 +21,9 @@ const SLOT_CHOICES = [
 function parseColorComponent(raw: string): number | null {
 	const n = parseFloat(raw);
 	if (Number.isNaN(n)) return null;
-	return n > 1 ? Math.max(0, Math.min(1, n / 255)) : Math.max(0, Math.min(1, n));
+	return n > 1
+		? Math.max(0, Math.min(1, n / 255))
+		: Math.max(0, Math.min(1, n));
 }
 
 export default new Command({
@@ -43,13 +45,21 @@ export default new Command({
 					o.setName("r").setDescription("Red (0-1 or 0-255)").setRequired(true),
 				)
 				.addNumberOption((o) =>
-					o.setName("g").setDescription("Green (0-1 or 0-255)").setRequired(true),
+					o
+						.setName("g")
+						.setDescription("Green (0-1 or 0-255)")
+						.setRequired(true),
 				)
 				.addNumberOption((o) =>
-					o.setName("b").setDescription("Blue (0-1 or 0-255)").setRequired(true),
+					o
+						.setName("b")
+						.setDescription("Blue (0-1 or 0-255)")
+						.setRequired(true),
 				),
 		)
-		.addSubcommand((s) => s.setName("reset").setDescription("Remove your skin override"))
+		.addSubcommand((s) =>
+			s.setName("reset").setDescription("Remove your skin override"),
+		)
 		.addSubcommand((s) =>
 			s
 				.setName("preset-save")
@@ -58,7 +68,10 @@ export default new Command({
 					o.setName("name").setDescription("Preset name").setRequired(true),
 				)
 				.addStringOption((o) =>
-					o.setName("colors").setDescription("JSON colors object").setRequired(true),
+					o
+						.setName("colors")
+						.setDescription("JSON colors object")
+						.setRequired(true),
 				),
 		)
 		.addSubcommand((s) =>
@@ -80,7 +93,8 @@ export default new Command({
 
 		if (!steam64) {
 			await interaction.reply({
-				content: "You haven't linked your Steam account yet.\nUse the **Link Steam ID** button first.",
+				content:
+					"You haven't linked your Steam account yet.\nUse the **Link Steam ID** button first.",
 				ephemeral: true,
 			});
 			return;
@@ -88,12 +102,21 @@ export default new Command({
 
 		if (sub === "set") {
 			const slot = interaction.options.getString("slot", true);
-			const rc = parseColorComponent(String(interaction.options.getNumber("r", true)));
-			const gc = parseColorComponent(String(interaction.options.getNumber("g", true)));
-			const bc = parseColorComponent(String(interaction.options.getNumber("b", true)));
+			const rc = parseColorComponent(
+				String(interaction.options.getNumber("r", true)),
+			);
+			const gc = parseColorComponent(
+				String(interaction.options.getNumber("g", true)),
+			);
+			const bc = parseColorComponent(
+				String(interaction.options.getNumber("b", true)),
+			);
 
 			if (rc === null || gc === null || bc === null) {
-				await interaction.reply({ content: "Invalid color values.", ephemeral: true });
+				await interaction.reply({
+					content: "Invalid color values.",
+					ephemeral: true,
+				});
 				return;
 			}
 
@@ -119,14 +142,17 @@ export default new Command({
 
 				const result = await client.ipc.send("skin", steam64, args);
 				const colorInt =
-					Math.round(rc * 255) * 65536 + Math.round(gc * 255) * 256 + Math.round(bc * 255);
+					Math.round(rc * 255) * 65536 +
+					Math.round(gc * 255) * 256 +
+					Math.round(bc * 255);
 				await interaction.editReply({
 					embeds: [
 						new EmbedBuilder()
 							.setColor(result.ok ? colorInt || 0x57f287 : 0xed4245)
 							.setTitle(result.ok ? "Skin Updated" : "Skin Update Failed")
 							.setDescription(
-								result.msg || (result.ok ? "Color applied to your dino." : "Unknown error"),
+								result.msg ||
+									(result.ok ? "Color applied to your dino." : "Unknown error"),
 							),
 					],
 				});
@@ -141,7 +167,9 @@ export default new Command({
 		if (sub === "reset") {
 			await interaction.deferReply({ ephemeral: true });
 			try {
-				const result = await client.ipc.send("skin", steam64, { field: "reset" });
+				const result = await client.ipc.send("skin", steam64, {
+					field: "reset",
+				});
 				await interaction.editReply(
 					result.ok ? "Skin override removed." : `Failed: ${result.msg}`,
 				);
@@ -159,11 +187,19 @@ export default new Command({
 			try {
 				colors = JSON.parse(interaction.options.getString("colors", true));
 			} catch {
-				await interaction.reply({ content: "Invalid JSON for colors.", ephemeral: true });
+				await interaction.reply({
+					content: "Invalid JSON for colors.",
+					ephemeral: true,
+				});
 				return;
 			}
-			await db.insert(skinPresets).values({ id: uuidv4(), discordId: interaction.user.id, name, colors });
-			await interaction.reply({ content: `Preset **${name}** saved.`, ephemeral: true });
+			await db
+				.insert(skinPresets)
+				.values({ id: uuidv4(), discordId: interaction.user.id, name, colors });
+			await interaction.reply({
+				content: `Preset **${name}** saved.`,
+				ephemeral: true,
+			});
 			return;
 		}
 
@@ -172,17 +208,27 @@ export default new Command({
 			const [preset] = await db
 				.select()
 				.from(skinPresets)
-				.where(and(eq(skinPresets.discordId, interaction.user.id), eq(skinPresets.name, name)))
+				.where(
+					and(
+						eq(skinPresets.discordId, interaction.user.id),
+						eq(skinPresets.name, name),
+					),
+				)
 				.limit(1);
 
 			if (!preset) {
-				await interaction.reply({ content: `No preset named **${name}** found.`, ephemeral: true });
+				await interaction.reply({
+					content: `No preset named **${name}** found.`,
+					ephemeral: true,
+				});
 				return;
 			}
 
 			await interaction.deferReply({ ephemeral: true });
 			try {
-				const result = await client.ipc.send("skin", steam64, { customizer: preset.colors });
+				const result = await client.ipc.send("skin", steam64, {
+					customizer: preset.colors,
+				});
 				await interaction.editReply(
 					result.ok ? `Preset **${name}** applied.` : `Failed: ${result.msg}`,
 				);
@@ -201,7 +247,10 @@ export default new Command({
 				.where(eq(skinPresets.discordId, interaction.user.id));
 
 			if (presets.length === 0) {
-				await interaction.reply({ content: "You have no saved skin presets.", ephemeral: true });
+				await interaction.reply({
+					content: "You have no saved skin presets.",
+					ephemeral: true,
+				});
 				return;
 			}
 

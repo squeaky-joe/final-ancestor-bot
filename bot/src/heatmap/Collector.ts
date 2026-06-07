@@ -32,7 +32,11 @@ export async function collectPositions(): Promise<number> {
 		try {
 			const entry: RawEntry = JSON.parse(line);
 			if (typeof entry.x === "number" && typeof entry.y === "number") {
-				rows.push({ x: entry.x, y: entry.y, loggedAt: new Date(entry.ts * 1000) });
+				rows.push({
+					x: entry.x,
+					y: entry.y,
+					loggedAt: new Date(entry.ts * 1000),
+				});
 			}
 		} catch {
 			console.warn("[heatmap:collector] Skipping malformed line:", line);
@@ -52,6 +56,10 @@ export async function collectPositions(): Promise<number> {
 }
 
 export async function pruneOldPositions(): Promise<void> {
-	const cutoff = new Date(Date.now() - config.heatmap.retentionHours * 60 * 60 * 1000);
-	await db.delete(heatmapPositions).where(sql`${heatmapPositions.loggedAt} < ${cutoff}`);
+	const cutoff = new Date(
+		Date.now() - config.heatmap.retentionHours * 60 * 60 * 1000,
+	);
+	await db
+		.delete(heatmapPositions)
+		.where(sql`${heatmapPositions.loggedAt} < ${cutoff}`);
 }

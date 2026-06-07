@@ -1,4 +1,8 @@
-import { EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import {
+	EmbedBuilder,
+	PermissionFlagsBits,
+	SlashCommandBuilder,
+} from "discord.js";
 import { v4 as uuidv4 } from "uuid";
 import { Command } from "../../classes/index.js";
 import { getSteam64, getGuildConfig, db } from "../../db/index.js";
@@ -73,7 +77,10 @@ export default new Command({
 		const cfg = await getGuildConfig(interaction.guildId!);
 		const member = await interaction.guild?.members.fetch(interaction.user.id);
 		if (!member || !hasRole(member, cfg.modRoleId ?? cfg.adminRoleId)) {
-			await interaction.reply({ content: "❌ You don't have permission to use this command.", flags: 64 });
+			await interaction.reply({
+				content: "❌ You don't have permission to use this command.",
+				flags: 64,
+			});
 			return;
 		}
 
@@ -97,7 +104,9 @@ export default new Command({
 			if (targetUser) {
 				const steam = await getSteam64(targetUser.id);
 				if (!steam) {
-					await interaction.editReply(`${targetUser.username} hasn't linked their Steam64 ID.`);
+					await interaction.editReply(
+						`${targetUser.username} hasn't linked their Steam64 ID.`,
+					);
 					return;
 				}
 				targetSteam = steam;
@@ -117,7 +126,9 @@ export default new Command({
 
 			let result;
 			try {
-				result = await client.ipc.sendAndAwaitSubMod("bodydrop", adminSteam, { args });
+				result = await client.ipc.sendAndAwaitSubMod("bodydrop", adminSteam, {
+					args,
+				});
 			} catch (e) {
 				await interaction.editReply(
 					`⚠️ IPC error: ${e instanceof Error ? e.message : String(e)}`,
@@ -149,9 +160,16 @@ export default new Command({
 						.addFields(
 							{ name: "Species", value: species, inline: true },
 							{ name: "Growth", value: `${growthPct}%`, inline: true },
-							{ name: targetSteam ? "Near Player" : "Location", value: locationLabel, inline: true },
+							{
+								name: targetSteam ? "Near Player" : "Location",
+								value: locationLabel,
+								inline: true,
+							},
 						)
-						.setDescription(result.msg || (result.ok ? "Corpse has been spawned." : "Unknown error")),
+						.setDescription(
+							result.msg ||
+								(result.ok ? "Corpse has been spawned." : "Unknown error"),
+						),
 				],
 			});
 			return;
@@ -160,7 +178,9 @@ export default new Command({
 		if (sub === "status") {
 			await interaction.deferReply({ ephemeral: true });
 			try {
-				const result = await client.ipc.sendAndAwaitSubMod("bodydrop", "", { args: ["status"] });
+				const result = await client.ipc.sendAndAwaitSubMod("bodydrop", "", {
+					args: ["status"],
+				});
 				await interaction.editReply({
 					embeds: [
 						new EmbedBuilder()

@@ -1,8 +1,14 @@
-import { EmbedBuilder, MessageFlags, type ModalSubmitInteraction } from "discord.js";
+import {
+	EmbedBuilder,
+	MessageFlags,
+	type ModalSubmitInteraction,
+} from "discord.js";
 import { db } from "../../db/index.js";
 import { users } from "../../db/schema.js";
 
-export async function handleLinkModal(interaction: ModalSubmitInteraction): Promise<void> {
+export async function handleLinkModal(
+	interaction: ModalSubmitInteraction,
+): Promise<void> {
 	const steam64 = interaction.fields.getTextInputValue("steam64_input").trim();
 
 	if (!/^\d{17}$/.test(steam64)) {

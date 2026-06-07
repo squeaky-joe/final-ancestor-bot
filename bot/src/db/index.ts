@@ -26,7 +26,10 @@ export interface GuildConfig {
 
 export async function getGuildConfig(guildId: string): Promise<GuildConfig> {
 	const [row] = await db
-		.select({ adminRoleId: guildConfig.adminRoleId, modRoleId: guildConfig.modRoleId })
+		.select({
+			adminRoleId: guildConfig.adminRoleId,
+			modRoleId: guildConfig.modRoleId,
+		})
 		.from(guildConfig)
 		.where(eq(guildConfig.guildId, guildId))
 		.limit(1);

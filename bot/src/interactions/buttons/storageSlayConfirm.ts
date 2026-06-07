@@ -5,10 +5,15 @@ import type { FinalAncestorClient } from "../../classes/Client.js";
 const NOT_LINKED =
 	"You haven't linked your Steam account yet.\nUse the **Link Steam ID** button first.";
 
-export async function handleStorageSlayConfirm(interaction: ButtonInteraction): Promise<void> {
+export async function handleStorageSlayConfirm(
+	interaction: ButtonInteraction,
+): Promise<void> {
 	const steam64 = await getSteam64(interaction.user.id);
 	if (!steam64) {
-		await interaction.reply({ content: NOT_LINKED, flags: MessageFlags.Ephemeral });
+		await interaction.reply({
+			content: NOT_LINKED,
+			flags: MessageFlags.Ephemeral,
+		});
 		return;
 	}
 
@@ -20,10 +25,15 @@ export async function handleStorageSlayConfirm(interaction: ButtonInteraction): 
 		const embed = new EmbedBuilder()
 			.setColor(result.ok ? 0xed4245 : 0xffa500)
 			.setTitle(result.ok ? "⚔️ Dino Slain" : "Slay Failed")
-			.setDescription(result.msg || (result.ok ? "Your dinosaur has been slain." : "Unknown error."));
+			.setDescription(
+				result.msg ||
+					(result.ok ? "Your dinosaur has been slain." : "Unknown error."),
+			);
 
 		await interaction.editReply({ embeds: [embed] });
 	} catch (e) {
-		await interaction.editReply(`⚠️ IPC error: ${e instanceof Error ? e.message : String(e)}`);
+		await interaction.editReply(
+			`⚠️ IPC error: ${e instanceof Error ? e.message : String(e)}`,
+		);
 	}
 }

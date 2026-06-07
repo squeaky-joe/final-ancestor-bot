@@ -1,6 +1,8 @@
 import type { ClientEvents } from "discord.js";
 
-export interface ListenerOptions<E extends keyof ClientEvents = keyof ClientEvents> {
+export interface ListenerOptions<
+	E extends keyof ClientEvents = keyof ClientEvents,
+> {
 	name: E;
 	once?: boolean;
 	execute: (...args: ClientEvents[E]) => Promise<void> | void;

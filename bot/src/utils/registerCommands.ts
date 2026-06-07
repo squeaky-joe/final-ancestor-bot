@@ -10,9 +10,15 @@ import type { Logger } from "../classes/Logger.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HASH_FILE = path.join(__dirname, "..", "..", ".command-hash");
 
-export async function registerCommands(commands: Command[], logger: Logger): Promise<void> {
+export async function registerCommands(
+	commands: Command[],
+	logger: Logger,
+): Promise<void> {
 	const body = commands.map((c) => c.data.toJSON());
-	const hash = crypto.createHash("sha1").update(JSON.stringify(body)).digest("hex");
+	const hash = crypto
+		.createHash("sha1")
+		.update(JSON.stringify(body))
+		.digest("hex");
 
 	let lastHash = "";
 	try {

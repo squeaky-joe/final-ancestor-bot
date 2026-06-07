@@ -15,7 +15,9 @@ export function buildLinkPanelEmbed(): EmbedBuilder {
 				"**How to find your Steam64 ID:**\n" +
 				"> Visit **steamid.io**, enter your Steam profile URL, and copy the **steamID64** value.",
 		)
-		.setFooter({ text: "You only need to link once. Click the button below to get started." });
+		.setFooter({
+			text: "You only need to link once. Click the button below to get started.",
+		});
 }
 
 export function buildLinkPanelRow(): ActionRowBuilder<ButtonBuilder> {

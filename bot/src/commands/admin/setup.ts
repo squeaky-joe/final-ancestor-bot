@@ -11,7 +11,10 @@ import { Command } from "../../classes/index.js";
 import { db } from "../../db/index.js";
 import { guildConfig } from "../../db/schema.js";
 import { buildLinkPanelEmbed, buildLinkPanelRow } from "../../embeds/index.js";
-import { buildStoragePanelEmbed, buildStoragePanelRow } from "../../embeds/index.js";
+import {
+	buildStoragePanelEmbed,
+	buildStoragePanelRow,
+} from "../../embeds/index.js";
 import { setupHeatmapChannel } from "../../heatmap/index.js";
 import type { FinalAncestorClient } from "../../classes/Client.js";
 
@@ -47,7 +50,9 @@ export default new Command({
 		.addSubcommand((s) =>
 			s
 				.setName("heatmap")
-				.setDescription("Post the activity heatmap embed and start auto-updates")
+				.setDescription(
+					"Post the activity heatmap embed and start auto-updates",
+				)
 				.addChannelOption((o) =>
 					o
 						.setName("channel")
@@ -59,7 +64,9 @@ export default new Command({
 		.addSubcommand((s) =>
 			s
 				.setName("roles")
-				.setDescription("Configure the admin and moderator roles for this server")
+				.setDescription(
+					"Configure the admin and moderator roles for this server",
+				)
 				.addRoleOption((o) =>
 					o
 						.setName("admin")
@@ -81,7 +88,10 @@ export default new Command({
 			(interaction.channel as TextChannel);
 
 		if (sub === "link") {
-			await target.send({ embeds: [buildLinkPanelEmbed()], components: [buildLinkPanelRow()] });
+			await target.send({
+				embeds: [buildLinkPanelEmbed()],
+				components: [buildLinkPanelRow()],
+			});
 			await interaction.reply({
 				content: `Link embed posted in ${target}.`,
 				flags: MessageFlags.Ephemeral,
@@ -139,18 +149,27 @@ export default new Command({
 					.addFields(
 						{
 							name: "Admin Role",
-							value: current?.adminRoleId ? `<@&${current.adminRoleId}>` : "_Not set — uses Discord Administrator permission_",
+							value: current?.adminRoleId
+								? `<@&${current.adminRoleId}>`
+								: "_Not set — uses Discord Administrator permission_",
 							inline: true,
 						},
 						{
 							name: "Mod Role",
-							value: current?.modRoleId ? `<@&${current.modRoleId}>` : "_Not set — no restriction_",
+							value: current?.modRoleId
+								? `<@&${current.modRoleId}>`
+								: "_Not set — no restriction_",
 							inline: true,
 						},
 					)
-					.setFooter({ text: "Use /setup roles admin: @role mod: @role to update" });
+					.setFooter({
+						text: "Use /setup roles admin: @role mod: @role to update",
+					});
 
-				await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+				await interaction.reply({
+					embeds: [embed],
+					flags: MessageFlags.Ephemeral,
+				});
 				return;
 			}
 
@@ -164,18 +183,26 @@ export default new Command({
 				.onConflictDoUpdate({
 					target: guildConfig.guildId,
 					set: {
-						...(adminRole !== undefined ? { adminRoleId: adminRole?.id ?? null } : {}),
-						...(modRole !== undefined ? { modRoleId: modRole?.id ?? null } : {}),
+						...(adminRole !== undefined
+							? { adminRoleId: adminRole?.id ?? null }
+							: {}),
+						...(modRole !== undefined
+							? { modRoleId: modRole?.id ?? null }
+							: {}),
 						updatedAt: new Date(),
 					},
 				});
 
 			const lines: string[] = [];
 			if (adminRole !== undefined) {
-				lines.push(`**Admin role** → ${adminRole ? `<@&${adminRole.id}>` : "_cleared_"}`);
+				lines.push(
+					`**Admin role** → ${adminRole ? `<@&${adminRole.id}>` : "_cleared_"}`,
+				);
 			}
 			if (modRole !== undefined) {
-				lines.push(`**Mod role** → ${modRole ? `<@&${modRole.id}>` : "_cleared_"}`);
+				lines.push(
+					`**Mod role** → ${modRole ? `<@&${modRole.id}>` : "_cleared_"}`,
+				);
 			}
 
 			await interaction.reply({
