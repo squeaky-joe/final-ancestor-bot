@@ -77,7 +77,9 @@ function buildHeatLayer(positions: { x: number; y: number }[]): Canvas {
 }
 
 export async function generateHeatmap(): Promise<Buffer> {
-	const cutoff = new Date(Date.now() - config.heatmap.retentionHours * 60 * 60 * 1000);
+	const cutoff = new Date(
+		Date.now() - config.heatmap.retentionHours * 60 * 60 * 1000,
+	);
 	const rows = await db
 		.select({ x: heatmapPositions.x, y: heatmapPositions.y })
 		.from(heatmapPositions)
@@ -100,7 +102,11 @@ export async function generateHeatmap(): Promise<Buffer> {
 		if (!mapPath) {
 			ctx.fillStyle = "rgba(255,255,255,0.15)";
 			ctx.font = "14px sans-serif";
-			ctx.fillText("Set HEATMAP_MAP_PATH to overlay on map", 20, OUTPUT_SIZE - 20);
+			ctx.fillText(
+				"Set HEATMAP_MAP_PATH to overlay on map",
+				20,
+				OUTPUT_SIZE - 20,
+			);
 		}
 	}
 

@@ -19,14 +19,20 @@ const BUTTON_HANDLERS = new Map<string, ButtonHandler>([
 	["storage_slay_confirm", handleStorageSlayConfirm],
 ]);
 
-const MODAL_HANDLERS = new Map<string, ModalHandler>([["link_modal", handleLinkModal]]);
+const MODAL_HANDLERS = new Map<string, ModalHandler>([
+	["link_modal", handleLinkModal],
+]);
 
-export async function handleButton(interaction: ButtonInteraction): Promise<void> {
+export async function handleButton(
+	interaction: ButtonInteraction,
+): Promise<void> {
 	const handler = BUTTON_HANDLERS.get(interaction.customId);
 	if (handler) await handler(interaction);
 }
 
-export async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
+export async function handleModal(
+	interaction: ModalSubmitInteraction,
+): Promise<void> {
 	const handler = MODAL_HANDLERS.get(interaction.customId);
 	if (handler) await handler(interaction);
 }

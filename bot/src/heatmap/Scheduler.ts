@@ -12,7 +12,10 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 export function startHeatmapScheduler(client: FinalAncestorClient): void {
 	void runPipeline(client);
-	timer = setInterval(() => void runPipeline(client), config.heatmap.intervalMs);
+	timer = setInterval(
+		() => void runPipeline(client),
+		config.heatmap.intervalMs,
+	);
 	client.logger.info(
 		`Heatmap scheduler started — updating every ${config.heatmap.intervalMs / 60_000} min`,
 	);
@@ -35,7 +38,12 @@ export async function setupHeatmapChannel(
 
 	await db
 		.insert(heatmapConfig)
-		.values({ id: CONFIG_ROW_ID, channelId, messageId: msg.id, updatedAt: new Date() })
+		.values({
+			id: CONFIG_ROW_ID,
+			channelId,
+			messageId: msg.id,
+			updatedAt: new Date(),
+		})
 		.onConflictDoUpdate({
 			target: heatmapConfig.id,
 			set: { channelId, messageId: msg.id, updatedAt: new Date() },
@@ -66,10 +74,14 @@ async function runPipeline(client: FinalAncestorClient): Promise<void> {
 			try {
 				const existing = await channel.messages.fetch(cfg.messageId);
 				await existing.edit({ embeds: [embed], files: [file] });
-				client.logger.debug(`Heatmap updated (message ${cfg.messageId}, +${collected} pts)`);
+				client.logger.debug(
+					`Heatmap updated (message ${cfg.messageId}, +${collected} pts)`,
+				);
 				return;
 			} catch {
-				client.logger.warn("Heatmap: previous message not found, posting new one");
+				client.logger.warn(
+					"Heatmap: previous message not found, posting new one",
+				);
 			}
 		}
 

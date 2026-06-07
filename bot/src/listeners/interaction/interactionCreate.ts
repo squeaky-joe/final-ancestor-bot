@@ -15,7 +15,10 @@ export default new Listener({
 				await command.execute(interaction);
 			} catch (err) {
 				client.logger.error(`Command error [${interaction.commandName}]:`, err);
-				const msg = { content: "An error occurred while running that command.", ephemeral: true };
+				const msg = {
+					content: "An error occurred while running that command.",
+					ephemeral: true,
+				};
 				if (interaction.replied || interaction.deferred) {
 					await interaction.followUp(msg);
 				} else {

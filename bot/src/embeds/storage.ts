@@ -18,18 +18,30 @@ export function buildStoragePanelEmbed(): EmbedBuilder {
 		.addFields(
 			{
 				name: "🅿️ Park",
-				value: "Saves your current dino and sends you back to spawn.\n*Requires 75%+ growth.*",
+				value:
+					"Saves your current dino and sends you back to spawn.\n*Requires 75%+ growth.*",
 				inline: false,
 			},
 			{
 				name: "📦 Retrieve",
-				value: "Restores your last parked dino. Spawn the **same species** in-game first, then click.",
+				value:
+					"Restores your last parked dino. Spawn the **same species** in-game first, then click.",
 				inline: false,
 			},
-			{ name: "📋 List", value: "Shows your currently parked dinos.", inline: false },
-			{ name: "⚔️ Slay", value: "Immediately kills your current dinosaur.", inline: false },
+			{
+				name: "📋 List",
+				value: "Shows your currently parked dinos.",
+				inline: false,
+			},
+			{
+				name: "⚔️ Slay",
+				value: "Immediately kills your current dinosaur.",
+				inline: false,
+			},
 		)
-		.setFooter({ text: "Use the Link Steam ID button if you haven't linked yet." });
+		.setFooter({
+			text: "Use the Link Steam ID button if you haven't linked yet.",
+		});
 }
 
 export function buildStoragePanelRow(): ActionRowBuilder<ButtonBuilder> {
@@ -70,11 +82,16 @@ export function buildStorageResultEmbed(
 		.setDescription(msg || (ok ? "Done." : "Unknown error."));
 }
 
-export function buildSlayConfirmEmbed(): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
+export function buildSlayConfirmEmbed(): {
+	embed: EmbedBuilder;
+	row: ActionRowBuilder<ButtonBuilder>;
+} {
 	const embed = new EmbedBuilder()
 		.setColor(0xffa500)
 		.setTitle("⚠️ Confirm Slay")
-		.setDescription("This will **immediately kill** your current dinosaur.\nAre you sure?");
+		.setDescription(
+			"This will **immediately kill** your current dinosaur.\nAre you sure?",
+		);
 
 	const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
 		new ButtonBuilder()
@@ -117,7 +134,10 @@ export function formatTs(ts: number): string {
 	});
 }
 
-export function buildListEmbed(steam64: string, slots: SlotEntry[]): EmbedBuilder {
+export function buildListEmbed(
+	steam64: string,
+	slots: SlotEntry[],
+): EmbedBuilder {
 	const embed = new EmbedBuilder()
 		.setColor(0x5865f2)
 		.setTitle("📋 Your Parked Dinos")

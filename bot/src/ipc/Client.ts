@@ -54,7 +54,10 @@ export class IpcClient {
 			fs.closeSync(fd);
 			this.resultsOffset = stat.size;
 
-			for (const line of buf.toString("utf8").split("\n").filter((l) => l.trim())) {
+			for (const line of buf
+				.toString("utf8")
+				.split("\n")
+				.filter((l) => l.trim())) {
 				try {
 					const result: IpcResult = JSON.parse(line);
 					console.log(
@@ -74,10 +77,20 @@ export class IpcClient {
 		}
 	}
 
-	send(verb: string, steam: string, args: Record<string, unknown> = {}): Promise<IpcResult> {
+	send(
+		verb: string,
+		steam: string,
+		args: Record<string, unknown> = {},
+	): Promise<IpcResult> {
 		return new Promise((resolve, reject) => {
 			const id = uuidv4();
-			const cmd: IpcCommand = { id, ts: Math.floor(Date.now() / 1000), verb, steam, args };
+			const cmd: IpcCommand = {
+				id,
+				ts: Math.floor(Date.now() / 1000),
+				verb,
+				steam,
+				args,
+			};
 
 			const timeout = setTimeout(() => {
 				this.pending.delete(id);
@@ -106,7 +119,13 @@ export class IpcClient {
 	): Promise<IpcResult> {
 		return new Promise((resolve, reject) => {
 			const id = uuidv4();
-			const cmd: IpcCommand = { id, ts: Math.floor(Date.now() / 1000), verb, steam, args };
+			const cmd: IpcCommand = {
+				id,
+				ts: Math.floor(Date.now() / 1000),
+				verb,
+				steam,
+				args,
+			};
 
 			const timeout = setTimeout(() => {
 				this.pending.delete(id);
