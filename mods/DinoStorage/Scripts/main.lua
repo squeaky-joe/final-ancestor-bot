@@ -913,14 +913,16 @@ local function applyState(pawn, steam, state)
             local nutr; pcall(function() nutr = pawn2.NutrientsStruct end)
             if nutr ~= nil then
                 pcall(function()
+                    -- Fill normal diet nutrients to max
                     nutr.CarbValue        = 9999.0
                     nutr.ProteinValue     = 9999.0
                     nutr.LipidValue       = 9999.0
                     nutr.BonesValue       = 9999.0
-                    nutr.CannibalValue    = 9999.0
                     nutr.MagyValue        = 9999.0
-                    nutr.RottenFleshValue = 9999.0
                     nutr.MushroomsValue   = 9999.0
+                    -- Zero debuff-causing nutrients (rotten flesh = food poisoning, cannibal = spasms/infertility)
+                    nutr.RottenFleshValue = 0.0
+                    nutr.CannibalValue    = 0.0
                     nutr.bMalnutrition    = false
                     pawn2:SetNutrientsStruct(nutr, true)
                 end)
