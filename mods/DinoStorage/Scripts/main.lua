@@ -897,11 +897,35 @@ local function applyState(pawn, steam, state)
                 pcall(function() pawn2:SetGrowth(state.growth) end)
             end
             if state.health   ~= nil then pcall(function() pawn2:SetHealth(state.health) end) end
-            if state.hunger   ~= nil then pcall(function() pawn2:SetHunger(state.hunger) end) end
-            if state.thirst   ~= nil then pcall(function() pawn2:SetThirst(state.thirst) end) end
             if state.stamina  ~= nil then pcall(function() pawn2:SetStamina(state.stamina) end) end
 
-            queueNotify(steamSnap, "Dino restored! Check your stats.")
+            -- Fill hunger, thirst, food value, and water level to max
+            local maxHunger; pcall(function() maxHunger = pawn2:GetMaxHunger() end)
+            if maxHunger ~= nil then pcall(function() pawn2:SetHunger(maxHunger) end) end
+            local maxThirst; pcall(function() maxThirst = pawn2:GetMaxThirst() end)
+            if maxThirst ~= nil then pcall(function() pawn2:SetThirst(maxThirst) end) end
+            local maxFood; pcall(function() maxFood = pawn2:GetMaxFoodValue() end)
+            if maxFood ~= nil then pcall(function() pawn2:SetFoodValue(maxFood) end) end
+            local maxWater; pcall(function() maxWater = pawn2:GetMaxWaterLevel() end)
+            if maxWater ~= nil then pcall(function() pawn2:SetWaterLevel(maxWater) end) end
+
+            -- Fill all diet nutrients to full
+            local nutr; pcall(function() nutr = pawn2.NutrientsStruct end)
+            if nutr ~= nil then
+                pcall(function()
+                    nutr.CarbValue        = 1.0
+                    nutr.ProteinValue     = 1.0
+                    nutr.LipidValue       = 1.0
+                    nutr.BonesValue       = 1.0
+                    nutr.CannibalValue    = 1.0
+                    nutr.MagyValue        = 1.0
+                    nutr.RottenFleshValue = 1.0
+                    nutr.MushroomsValue   = 1.0
+                    pawn2:SetNutrientsStruct(nutr, true)
+                end)
+            end
+
+            queueNotify(steamSnap, "Dino restored! Stats, hunger, thirst, and diets filled.")
         end)
     end
 
@@ -1090,6 +1114,34 @@ local function pollCmdFlag()
                 deleteSlot(steam, slot)
                 updateIndex(steam, slot, nil, true)
                 ok = true; msg = "slot deleted"
+            elseif verb == "rename" then
+                local oldSlot = extraArgs[1] or "default"
+                local newSlot = extraArgs[2]
+                if newSlot == nil or newSlot == "" then
+                    ok = false; msg = "missing new slot name"
+                else
+                    local oldPath = slotFile(steam, oldSlot)
+                    if not fileExists(oldPath) then
+                        ok = false; msg = "slot not found: " .. oldSlot
+                    else
+                        local newPath = slotFile(steam, newSlot)
+                        if fileExists(newPath) then
+                            ok = false; msg = "a slot named '" .. newSlot .. "' already exists"
+                        else
+                            local renameOk = os.rename(oldPath, newPath)
+                            if renameOk then
+                                local state = loadState(steam, newSlot)
+                                if state then
+                                    updateIndex(steam, oldSlot, nil, true)
+                                    updateIndex(steam, newSlot, state, false)
+                                end
+                                ok = true; msg = string.format("renamed '%s' to '%s'", oldSlot, newSlot)
+                            else
+                                ok = false; msg = "rename failed"
+                            end
+                        end
+                    end
+                end
             elseif verb == "connected" then
                 local gm = findGameMode()
                 if gm == nil then
@@ -1107,9 +1159,18 @@ local function pollCmdFlag()
                 local listJson = "["
                 for i, s in ipairs(slots) do
                     if i > 1 then listJson = listJson .. "," end
+                    local state = loadState(steam, s.slot)
+                    local mut = (state and state.mutations) or {}
+                    local mutJson = string.format(
+                        '{"Slot1":"%s","Slot2":"%s","Slot3":"%s","Slot4":"%s"}',
+                        jsonEscape(mut.MutationSlot1 or ""),
+                        jsonEscape(mut.MutationSlot2 or ""),
+                        jsonEscape(mut.MutationSlot3 or ""),
+                        jsonEscape(mut.MutationSlot4 or "")
+                    )
                     listJson = listJson .. string.format(
-                        '{"slot":"%s","classPath":"%s","growth":%.6f,"capturedAt":%d}',
-                        jsonEscape(s.slot), jsonEscape(s.classPath), s.growth, s.capturedAt
+                        '{"slot":"%s","classPath":"%s","growth":%.6f,"capturedAt":%d,"mutations":%s}',
+                        jsonEscape(s.slot), jsonEscape(s.classPath), s.growth, s.capturedAt, mutJson
                     )
                 end
                 listJson = listJson .. "]"

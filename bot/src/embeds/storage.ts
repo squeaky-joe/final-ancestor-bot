@@ -3,8 +3,11 @@ import {
 	ButtonBuilder,
 	ButtonStyle,
 	EmbedBuilder,
+	ModalBuilder,
 	StringSelectMenuBuilder,
 	StringSelectMenuOptionBuilder,
+	TextInputBuilder,
+	TextInputStyle,
 } from "discord.js";
 
 // ---- Panel ----
@@ -21,18 +24,23 @@ export function buildStoragePanelEmbed(): EmbedBuilder {
 			{
 				name: "🅿️ Park",
 				value:
-					"Saves your current dino and sends you back to spawn.\n*Requires 75%+ growth.*",
+					"Saves your current dino. You'll be prompted to name the slot.\n*Requires 75%+ growth.*",
 				inline: false,
 			},
 			{
 				name: "📦 Retrieve",
 				value:
-					"Restores your last parked dino. Spawn the **same species** in-game first, then click.",
+					"Restores a parked dino. Select the slot, then spawn the **same species** in-game first.",
 				inline: false,
 			},
 			{
 				name: "📋 List",
-				value: "Shows your currently parked dinos.",
+				value: "Shows all your parked dinos and their mutations.",
+				inline: false,
+			},
+			{
+				name: "📝 Rename",
+				value: "Rename one of your stored slots.",
 				inline: false,
 			},
 			{
@@ -64,11 +72,55 @@ export function buildStoragePanelRow(): ActionRowBuilder<ButtonBuilder> {
 			.setStyle(ButtonStyle.Secondary)
 			.setEmoji("📋"),
 		new ButtonBuilder()
+			.setCustomId("storage_rename")
+			.setLabel("Rename")
+			.setStyle(ButtonStyle.Secondary)
+			.setEmoji("📝"),
+		new ButtonBuilder()
 			.setCustomId("storage_slay")
 			.setLabel("Slay")
 			.setStyle(ButtonStyle.Danger)
 			.setEmoji("⚔️"),
 	);
+}
+
+// ---- Modals ----
+
+export function buildParkModal(): ModalBuilder {
+	return new ModalBuilder()
+		.setCustomId("storage_park_modal")
+		.setTitle("Park Your Dino")
+		.addComponents(
+			new ActionRowBuilder<TextInputBuilder>().addComponents(
+				new TextInputBuilder()
+					.setCustomId("slot_name")
+					.setLabel("Slot name")
+					.setStyle(TextInputStyle.Short)
+					.setPlaceholder("e.g. main, juvi, prime")
+					.setValue("default")
+					.setMinLength(1)
+					.setMaxLength(32)
+					.setRequired(true),
+			),
+		);
+}
+
+export function buildRenameModal(oldSlot: string): ModalBuilder {
+	return new ModalBuilder()
+		.setCustomId(`storage_rename_modal:${oldSlot}`)
+		.setTitle(`Rename "${oldSlot}"`)
+		.addComponents(
+			new ActionRowBuilder<TextInputBuilder>().addComponents(
+				new TextInputBuilder()
+					.setCustomId("new_slot_name")
+					.setLabel("New slot name")
+					.setStyle(TextInputStyle.Short)
+					.setValue(oldSlot)
+					.setMinLength(1)
+					.setMaxLength(32)
+					.setRequired(true),
+			),
+		);
 }
 
 // ---- Result embeds ----
@@ -106,14 +158,44 @@ export function buildSlayConfirmEmbed(): {
 	return { embed, row };
 }
 
-// ---- List embed helpers ----
+// ---- Slot select menu ----
 
 export interface SlotEntry {
 	slot: string;
 	classPath: string;
 	growth: number;
 	capturedAt: number;
+	mutations?: {
+		Slot1?: string;
+		Slot2?: string;
+		Slot3?: string;
+		Slot4?: string;
+	};
 }
+
+export function buildSlotSelectRow(
+	slots: SlotEntry[],
+	customId = "storage_retrieve_slot",
+	placeholder = "Select a dino…",
+): ActionRowBuilder<StringSelectMenuBuilder> {
+	return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+		new StringSelectMenuBuilder()
+			.setCustomId(customId)
+			.setPlaceholder(placeholder)
+			.addOptions(
+				slots.map((s) =>
+					new StringSelectMenuOptionBuilder()
+						.setLabel(`${s.slot} — ${speciesName(s.classPath)}`)
+						.setDescription(
+							`${Math.round(s.growth * 100)}% growth · Parked ${formatTs(s.capturedAt)}`,
+						)
+						.setValue(s.slot),
+				),
+			),
+	);
+}
+
+// ---- List embed ----
 
 export function speciesName(classPath: string): string {
 	const m = classPath.match(/BP_(.+?)\./);
@@ -136,39 +218,28 @@ export function formatTs(ts: number): string {
 	});
 }
 
-export function buildSlotSelectRow(
-	slots: SlotEntry[],
-): ActionRowBuilder<StringSelectMenuBuilder> {
-	return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-		new StringSelectMenuBuilder()
-			.setCustomId("storage_retrieve_slot")
-			.setPlaceholder("Select a dino to retrieve…")
-			.addOptions(
-				slots.map((s) =>
-					new StringSelectMenuOptionBuilder()
-						.setLabel(speciesName(s.classPath))
-						.setDescription(
-							`${Math.round(s.growth * 100)}% growth · Parked ${formatTs(s.capturedAt)}`,
-						)
-						.setValue(s.slot),
-				),
-			),
-	);
+function mutationLabel(path: string): string {
+	const base = path.split("/").pop() ?? path;
+	return base.replace(/^BP_M_/, "").replace(/_C$/, "").replace(/_/g, " ");
 }
 
-export function buildListEmbed(
-	steam64: string,
-	slots: SlotEntry[],
-): EmbedBuilder {
+export function buildListEmbed(steam64: string, slots: SlotEntry[]): EmbedBuilder {
 	const embed = new EmbedBuilder()
 		.setColor(0x5865f2)
 		.setTitle("📋 Your Parked Dinos")
 		.setFooter({ text: `Steam: ${steam64}` });
 
 	for (const s of slots) {
+		const activeMuts = [s.mutations?.Slot1, s.mutations?.Slot2, s.mutations?.Slot3, s.mutations?.Slot4]
+			.filter((m): m is string => !!m)
+			.map(mutationLabel);
+
+		const mutLine =
+			activeMuts.length > 0 ? `**Mutations:** ${activeMuts.join(", ")}` : "**Mutations:** none";
+
 		embed.addFields({
-			name: `Slot: ${s.slot} — ${speciesName(s.classPath)}`,
-			value: `${growthBar(s.growth)}\nParked: ${formatTs(s.capturedAt)}`,
+			name: `${s.slot} — ${speciesName(s.classPath)}`,
+			value: `${growthBar(s.growth)}\n${mutLine}\nParked: ${formatTs(s.capturedAt)}`,
 			inline: false,
 		});
 	}
