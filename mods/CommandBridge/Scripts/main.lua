@@ -563,6 +563,7 @@ handlers.playerstats = handlers.ps
 local DINO_STORAGE_VERBS = {
     dino_store=true, dino_retrieve=true, dino_delete=true, dino_list=true,
     dino_setmax=true, dino_clearmax=true, dino_getmax=true,
+    dino_connected=true,
 }
 local function dinoStorageHandler(steam, argsLine, cmdId, verb)
     -- Extract optional args array
