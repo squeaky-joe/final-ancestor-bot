@@ -792,12 +792,18 @@ local function applyState(pawn, steam, state)
     local function setVital(fn, val)
         if val ~= nil then pcall(function() pawn[fn](pawn, val) end) end
     end
-    setVital("SetHealth",    state.health)
-    setVital("SetStamina",   state.stamina)
-    setVital("SetHunger",    state.hunger)
-    setVital("SetThirst",    state.thirst)
-    setVital("SetOxygen",    state.oxygen)
-    pcall(function() pawn:SetBloodLoss(0) end)
+    setVital("SetHealth",  state.health)
+    setVital("SetStamina", state.stamina)
+    setVital("SetOxygen",  state.oxygen)
+    -- Fill hunger/thirst/food/water immediately so there is no window between now and
+    -- the deferred block where the game can stamp dehydration or starvation conditions.
+    pcall(function() pawn:SetHunger(9999.0) end)
+    pcall(function() pawn:SetThirst(9999.0) end)
+    pcall(function() pawn:SetFoodValue(9999.0) end)
+    pcall(function() pawn:SetWaterLevel(9999.0) end)
+    -- Zero blood loss and locked damage immediately to prevent muscle spasms
+    pcall(function() pawn:SetBloodLoss(0.0) end)
+    pcall(function() pawn:SetLockedDamage(0.0) end)
 
     -- 8. Skin
     if state.skin ~= nil then
@@ -925,8 +931,9 @@ local function applyState(pawn, steam, state)
                 end)
             end
 
-            -- Clear blood loss to prevent muscle spasms
-            pcall(function() pawn2:SetBloodLoss(0) end)
+            -- Clear blood loss and locked damage to prevent muscle spasms
+            pcall(function() pawn2:SetBloodLoss(0.0) end)
+            pcall(function() pawn2:SetLockedDamage(0.0) end)
 
             queueNotify(steamSnap, "Dino restored! Stats, hunger, thirst, and diets filled.")
         end)
