@@ -166,10 +166,12 @@ export interface SlotEntry {
 	growth: number;
 	capturedAt: number;
 	mutations?: {
-		Slot1?: string;
-		Slot2?: string;
-		Slot3?: string;
-		Slot4?: string;
+		Slot1?: string; Slot2?: string; Slot3?: string; Slot4?: string;
+		ParentSlot1?: string; ParentSlot2?: string; ParentSlot3?: string; ParentSlot4?: string;
+		ElderSlot1A?: string; ElderSlot1B?: string;
+		ElderSlot2A?: string; ElderSlot2B?: string;
+		ElderSlot3A?: string; ElderSlot3B?: string;
+		ElderSlot4A?: string; ElderSlot4B?: string;
 	};
 }
 
@@ -230,16 +232,32 @@ export function buildListEmbed(steam64: string, slots: SlotEntry[]): EmbedBuilde
 		.setFooter({ text: `Steam: ${steam64}` });
 
 	for (const s of slots) {
-		const activeMuts = [s.mutations?.Slot1, s.mutations?.Slot2, s.mutations?.Slot3, s.mutations?.Slot4]
-			.filter((m): m is string => !!m)
+		const m = s.mutations;
+
+		const activeMuts = [m?.Slot1, m?.Slot2, m?.Slot3, m?.Slot4]
+			.filter((v): v is string => !!v)
 			.map(mutationLabel);
 
-		const mutLine =
-			activeMuts.length > 0 ? `**Mutations:** ${activeMuts.join(", ")}` : "**Mutations:** none";
+		const parentMuts = [m?.ParentSlot1, m?.ParentSlot2, m?.ParentSlot3, m?.ParentSlot4]
+			.filter((v): v is string => !!v)
+			.map(mutationLabel);
+
+		const elderMuts = [
+			m?.ElderSlot1A, m?.ElderSlot1B, m?.ElderSlot2A, m?.ElderSlot2B,
+			m?.ElderSlot3A, m?.ElderSlot3B, m?.ElderSlot4A, m?.ElderSlot4B,
+		]
+			.filter((v): v is string => !!v)
+			.map(mutationLabel);
+
+		const lines: string[] = [growthBar(s.growth)];
+		lines.push(`**Mutations:** ${activeMuts.length > 0 ? activeMuts.join(", ") : "none"}`);
+		if (parentMuts.length > 0) lines.push(`**Entombed:** ${parentMuts.join(", ")}`);
+		if (elderMuts.length > 0) lines.push(`**Elder:** ${elderMuts.join(", ")}`);
+		lines.push(`Parked: ${formatTs(s.capturedAt)}`);
 
 		embed.addFields({
 			name: `${s.slot} — ${speciesName(s.classPath)}`,
-			value: `${growthBar(s.growth)}\n${mutLine}\nParked: ${formatTs(s.capturedAt)}`,
+			value: lines.join("\n"),
 			inline: false,
 		});
 	}

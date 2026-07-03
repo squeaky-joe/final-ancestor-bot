@@ -909,7 +909,7 @@ local function applyState(pawn, steam, state)
             local maxWater; pcall(function() maxWater = pawn2:GetMaxWaterLevel() end)
             if maxWater ~= nil then pcall(function() pawn2:SetWaterLevel(maxWater) end) end
 
-            -- Fill all diet nutrients to full
+            -- Fill all diet nutrients to full and clear malnutrition
             local nutr; pcall(function() nutr = pawn2.NutrientsStruct end)
             if nutr ~= nil then
                 pcall(function()
@@ -921,9 +921,13 @@ local function applyState(pawn, steam, state)
                     nutr.MagyValue        = 9999.0
                     nutr.RottenFleshValue = 9999.0
                     nutr.MushroomsValue   = 9999.0
+                    nutr.bMalnutrition    = false
                     pawn2:SetNutrientsStruct(nutr, true)
                 end)
             end
+
+            -- Clear blood loss to prevent muscle spasms
+            pcall(function() pawn2:SetBloodLoss(0) end)
 
             queueNotify(steamSnap, "Dino restored! Stats, hunger, thirst, and diets filled.")
         end)
@@ -1162,11 +1166,18 @@ local function pollCmdFlag()
                     local state = loadState(steam, s.slot)
                     local mut = (state and state.mutations) or {}
                     local mutJson = string.format(
-                        '{"Slot1":"%s","Slot2":"%s","Slot3":"%s","Slot4":"%s"}',
-                        jsonEscape(mut.MutationSlot1 or ""),
-                        jsonEscape(mut.MutationSlot2 or ""),
-                        jsonEscape(mut.MutationSlot3 or ""),
-                        jsonEscape(mut.MutationSlot4 or "")
+                        '{"Slot1":"%s","Slot2":"%s","Slot3":"%s","Slot4":"%s",' ..
+                        '"ParentSlot1":"%s","ParentSlot2":"%s","ParentSlot3":"%s","ParentSlot4":"%s",' ..
+                        '"ElderSlot1A":"%s","ElderSlot1B":"%s","ElderSlot2A":"%s","ElderSlot2B":"%s",' ..
+                        '"ElderSlot3A":"%s","ElderSlot3B":"%s","ElderSlot4A":"%s","ElderSlot4B":"%s"}',
+                        jsonEscape(mut.MutationSlot1 or ""), jsonEscape(mut.MutationSlot2 or ""),
+                        jsonEscape(mut.MutationSlot3 or ""), jsonEscape(mut.MutationSlot4 or ""),
+                        jsonEscape(mut.ParentMutationSlot1 or ""), jsonEscape(mut.ParentMutationSlot2 or ""),
+                        jsonEscape(mut.ParentMutationSlot3 or ""), jsonEscape(mut.ParentMutationSlot4 or ""),
+                        jsonEscape(mut.ElderMutationSlot1A or ""), jsonEscape(mut.ElderMutationSlot1B or ""),
+                        jsonEscape(mut.ElderMutationSlot2A or ""), jsonEscape(mut.ElderMutationSlot2B or ""),
+                        jsonEscape(mut.ElderMutationSlot3A or ""), jsonEscape(mut.ElderMutationSlot3B or ""),
+                        jsonEscape(mut.ElderMutationSlot4A or ""), jsonEscape(mut.ElderMutationSlot4B or "")
                     )
                     listJson = listJson .. string.format(
                         '{"slot":"%s","classPath":"%s","growth":%.6f,"capturedAt":%d,"mutations":%s}',
