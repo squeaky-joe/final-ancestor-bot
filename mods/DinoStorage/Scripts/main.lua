@@ -610,16 +610,16 @@ local function deleteSlot(steam, slot)
 end
 
 local function listSlots(steam)
-    -- Scan stored/<steam>/ for *.json files
-    local dir = playerDir(steam)
     local slots = {}
-    -- UE4SS Lua has no directory listing; use the index file instead
     local indexBody = readAll(INDEX_FILE)
     if indexBody == nil then return slots end
-    -- Index format: array of {steam, slot, classPath, growth, capturedAt}
-    local pattern = '"steam"%s*:%s*"' .. jsonEscape(tostring(steam)) .. '"'
-    for entry in indexBody:gmatch('%b{}') do
-        if entry:find(pattern) then
+    -- Extract just the entries array to avoid matching the outer wrapper object,
+    -- which contains all users' data and would cause cross-user leakage.
+    local entriesBlock = string.match(indexBody, '"entries"%s*:%s*(%b[])')
+    if entriesBlock == nil then return slots end
+    local steamStr = tostring(steam)
+    for entry in entriesBlock:gmatch('%b{}') do
+        if jsonReadString(entry, "steam") == steamStr then
             slots[#slots+1] = {
                 slot      = jsonReadString(entry, "slot") or "default",
                 classPath = jsonReadString(entry, "classPath") or "",
