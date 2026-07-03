@@ -913,14 +913,14 @@ local function applyState(pawn, steam, state)
             local nutr; pcall(function() nutr = pawn2.NutrientsStruct end)
             if nutr ~= nil then
                 pcall(function()
-                    nutr.CarbValue        = 1.0
-                    nutr.ProteinValue     = 1.0
-                    nutr.LipidValue       = 1.0
-                    nutr.BonesValue       = 1.0
-                    nutr.CannibalValue    = 1.0
-                    nutr.MagyValue        = 1.0
-                    nutr.RottenFleshValue = 1.0
-                    nutr.MushroomsValue   = 1.0
+                    nutr.CarbValue        = 9999.0
+                    nutr.ProteinValue     = 9999.0
+                    nutr.LipidValue       = 9999.0
+                    nutr.BonesValue       = 9999.0
+                    nutr.CannibalValue    = 9999.0
+                    nutr.MagyValue        = 9999.0
+                    nutr.RottenFleshValue = 9999.0
+                    nutr.MushroomsValue   = 9999.0
                     pawn2:SetNutrientsStruct(nutr, true)
                 end)
             end
