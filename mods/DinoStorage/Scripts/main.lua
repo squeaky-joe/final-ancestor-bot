@@ -720,15 +720,16 @@ local function applyState(pawn, steam, state)
         local nutrStruct; pcall(function() nutrStruct = pawn.NutrientsStruct end)
         if nutrStruct ~= nil then
             pcall(function()
-                nutrStruct.CarbValue    = nutr.carbValue or 0
-                nutrStruct.ProteinValue = nutr.proteinValue or 0
-                nutrStruct.LipidValue   = nutr.lipidValue or 0
-                nutrStruct.BonesValue   = nutr.bonesValue or 0
-                nutrStruct.CannibalValue = nutr.cannibalValue or 0
-                nutrStruct.MagyValue    = nutr.magyValue or 0
-                nutrStruct.RottenFleshValue = nutr.rottenFleshValue or 0
+                nutrStruct.CarbValue        = nutr.carbValue or 0
+                nutrStruct.ProteinValue     = nutr.proteinValue or 0
+                nutrStruct.LipidValue       = nutr.lipidValue or 0
+                nutrStruct.BonesValue       = nutr.bonesValue or 0
+                nutrStruct.MagyValue        = nutr.magyValue or 0
                 nutrStruct.MushroomsValue   = nutr.mushroomsValue or 0
-                nutrStruct.bMalnutrition    = nutr.bMalnutrition == true
+                -- Always zero debuff-causing nutrients immediately on restore
+                nutrStruct.CannibalValue    = 0.0
+                nutrStruct.RottenFleshValue = 0.0
+                nutrStruct.bMalnutrition    = false
                 pawn:SetNutrientsStruct(nutrStruct, true)
             end)
         end
@@ -796,7 +797,7 @@ local function applyState(pawn, steam, state)
     setVital("SetHunger",    state.hunger)
     setVital("SetThirst",    state.thirst)
     setVital("SetOxygen",    state.oxygen)
-    setVital("SetBloodLoss", state.blood)
+    pcall(function() pawn:SetBloodLoss(0) end)
 
     -- 8. Skin
     if state.skin ~= nil then
