@@ -977,6 +977,21 @@ local function cmdRetrieve(steam, slot)
         return false, string.format("No parked dino found in slot '%s'.", slot)
     end
 
+    -- Species match: player must already be playing the correct species
+    local pawn = livePawnFromCtrl(ctrl)
+    if pawn == nil then
+        local storedSpecies = (state.classPath and state.classPath:match("BP_(.-)%.") or "dino"):gsub("_C$","")
+        return false, string.format("You need a live dino to retrieve into. Spawn as %s first.", storedSpecies)
+    end
+    local liveFull; pcall(function() liveFull = pawn:GetClass():GetFullName() end)
+    local liveClass = liveFull and (string.match(liveFull, "^%S+%s+(.+)$") or liveFull) or ""
+    local storedClass = state.classPath or ""
+    if liveClass ~= storedClass then
+        local liveSpecies = (liveClass:match("BP_(.-)%.") or "unknown"):gsub("_C$","")
+        local storedSpecies = (storedClass:match("BP_(.-)%.") or "dino"):gsub("_C$","")
+        return false, string.format("Species mismatch: you are playing as %s but this slot contains %s.", liveSpecies, storedSpecies)
+    end
+
     local species = (state.classPath and state.classPath:match("BP_(.-)%.") or "dino"):gsub("_C$","")
     queueNotify(steam, string.format("Retrieving %s from slot '%s'. Spawn the same species now!", species, slot))
 
@@ -1075,6 +1090,18 @@ local function pollCmdFlag()
                 deleteSlot(steam, slot)
                 updateIndex(steam, slot, nil, true)
                 ok = true; msg = "slot deleted"
+            elseif verb == "connected" then
+                local gm = findGameMode()
+                if gm == nil then
+                    ok = false; msg = "Server not ready."
+                else
+                    local ctrl; pcall(function() ctrl = gm:GetControllerBySteamId(steam) end)
+                    if ctrl ~= nil then
+                        ok = true; msg = "online"
+                    else
+                        ok = false; msg = "You are not connected to the server."
+                    end
+                end
             elseif verb == "list" then
                 local slots = listSlots(steam)
                 local listJson = "["

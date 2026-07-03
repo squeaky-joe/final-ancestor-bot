@@ -1,5 +1,5 @@
 import { Listener } from "../../classes/index.js";
-import { handleButton, handleModal } from "../../interactions/index.js";
+import { handleButton, handleModal, handleSelectMenu } from "../../interactions/index.js";
 import type { FinalAncestorClient } from "../../classes/Client.js";
 import type { Interaction } from "discord.js";
 
@@ -35,6 +35,11 @@ export default new Listener({
 
 		if (interaction.isModalSubmit()) {
 			await handleModal(interaction);
+			return;
+		}
+
+		if (interaction.isStringSelectMenu()) {
+			await handleSelectMenu(interaction);
 		}
 	},
 });

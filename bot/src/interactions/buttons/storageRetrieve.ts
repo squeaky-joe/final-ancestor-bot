@@ -1,6 +1,6 @@
-import { type ButtonInteraction, MessageFlags } from "discord.js";
+import { type ButtonInteraction, EmbedBuilder, MessageFlags } from "discord.js";
 import { getSteam64 } from "../../db/index.js";
-import { buildStorageResultEmbed } from "../../embeds/index.js";
+import { buildSlotSelectRow, type SlotEntry } from "../../embeds/index.js";
 import type { FinalAncestorClient } from "../../classes/Client.js";
 
 const NOT_LINKED =
@@ -22,21 +22,39 @@ export async function handleStorageRetrieve(
 	const client = interaction.client as FinalAncestorClient;
 
 	try {
-		const result = await client.ipc.sendAndAwaitSubMod(
-			"dino_retrieve",
-			steam64,
-			{
-				args: ["default"],
-			},
-		);
+		const [connResult, listResult] = await Promise.all([
+			client.ipc.sendAndAwaitSubMod("dino_connected", steam64),
+			client.ipc.sendAndAwaitSubMod("dino_list", steam64),
+		]);
+
+		if (!connResult.ok) {
+			await interaction.editReply({
+				embeds: [
+					new EmbedBuilder()
+						.setColor(0xed4245)
+						.setTitle("Not Connected")
+						.setDescription(connResult.msg || "You are not connected to the server."),
+				],
+			});
+			return;
+		}
+
+		let slots: SlotEntry[] = [];
+		try {
+			slots = JSON.parse(listResult.msg) as SlotEntry[];
+		} catch {
+			await interaction.editReply("Received malformed list from server.");
+			return;
+		}
+
+		if (slots.length === 0) {
+			await interaction.editReply("You have no parked dinos to retrieve.");
+			return;
+		}
+
 		await interaction.editReply({
-			embeds: [
-				buildStorageResultEmbed(
-					result.ok ? "📦 Dino Retrieved" : "Retrieve Failed",
-					result.ok,
-					result.msg,
-				),
-			],
+			content: "Select a dino to retrieve:",
+			components: [buildSlotSelectRow(slots)],
 		});
 	} catch (e) {
 		await interaction.editReply(

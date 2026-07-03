@@ -3,6 +3,8 @@ import {
 	ButtonBuilder,
 	ButtonStyle,
 	EmbedBuilder,
+	StringSelectMenuBuilder,
+	StringSelectMenuOptionBuilder,
 } from "discord.js";
 
 // ---- Panel ----
@@ -132,6 +134,26 @@ export function formatTs(ts: number): string {
 		hour: "2-digit",
 		minute: "2-digit",
 	});
+}
+
+export function buildSlotSelectRow(
+	slots: SlotEntry[],
+): ActionRowBuilder<StringSelectMenuBuilder> {
+	return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+		new StringSelectMenuBuilder()
+			.setCustomId("storage_retrieve_slot")
+			.setPlaceholder("Select a dino to retrieve…")
+			.addOptions(
+				slots.map((s) =>
+					new StringSelectMenuOptionBuilder()
+						.setLabel(speciesName(s.classPath))
+						.setDescription(
+							`${Math.round(s.growth * 100)}% growth · Parked ${formatTs(s.capturedAt)}`,
+						)
+						.setValue(s.slot),
+				),
+			),
+	);
 }
 
 export function buildListEmbed(

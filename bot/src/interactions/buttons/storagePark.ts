@@ -1,4 +1,4 @@
-import { type ButtonInteraction, MessageFlags } from "discord.js";
+import { type ButtonInteraction, EmbedBuilder, MessageFlags } from "discord.js";
 import { getSteam64 } from "../../db/index.js";
 import { buildStorageResultEmbed } from "../../embeds/index.js";
 import type { FinalAncestorClient } from "../../classes/Client.js";
@@ -22,6 +22,19 @@ export async function handleStoragePark(
 	const client = interaction.client as FinalAncestorClient;
 
 	try {
+		const connResult = await client.ipc.sendAndAwaitSubMod("dino_connected", steam64);
+		if (!connResult.ok) {
+			await interaction.editReply({
+				embeds: [
+					new EmbedBuilder()
+						.setColor(0xed4245)
+						.setTitle("Not Connected")
+						.setDescription(connResult.msg || "You are not connected to the server."),
+				],
+			});
+			return;
+		}
+
 		const result = await client.ipc.sendAndAwaitSubMod("dino_store", steam64, {
 			args: ["default"],
 		});

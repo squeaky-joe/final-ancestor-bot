@@ -5,6 +5,7 @@ export {
 	buildStorageResultEmbed,
 	buildSlayConfirmEmbed,
 	buildListEmbed,
+	buildSlotSelectRow,
 	speciesName,
 	growthBar,
 	formatTs,
