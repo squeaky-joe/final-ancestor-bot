@@ -899,15 +899,11 @@ local function applyState(pawn, steam, state)
             if state.health   ~= nil then pcall(function() pawn2:SetHealth(state.health) end) end
             if state.stamina  ~= nil then pcall(function() pawn2:SetStamina(state.stamina) end) end
 
-            -- Fill hunger, thirst, food value, and water level to max
-            local maxHunger; pcall(function() maxHunger = pawn2:GetMaxHunger() end)
-            if maxHunger ~= nil then pcall(function() pawn2:SetHunger(maxHunger) end) end
-            local maxThirst; pcall(function() maxThirst = pawn2:GetMaxThirst() end)
-            if maxThirst ~= nil then pcall(function() pawn2:SetThirst(maxThirst) end) end
-            local maxFood; pcall(function() maxFood = pawn2:GetMaxFoodValue() end)
-            if maxFood ~= nil then pcall(function() pawn2:SetFoodValue(maxFood) end) end
-            local maxWater; pcall(function() maxWater = pawn2:GetMaxWaterLevel() end)
-            if maxWater ~= nil then pcall(function() pawn2:SetWaterLevel(maxWater) end) end
+            -- Fill hunger, thirst, food value, and water level to max (game clamps to actual max)
+            pcall(function() pawn2:SetHunger(9999.0) end)
+            pcall(function() pawn2:SetThirst(9999.0) end)
+            pcall(function() pawn2:SetFoodValue(9999.0) end)
+            pcall(function() pawn2:SetWaterLevel(9999.0) end)
 
             -- Fill all diet nutrients to full and clear malnutrition
             local nutr; pcall(function() nutr = pawn2.NutrientsStruct end)
