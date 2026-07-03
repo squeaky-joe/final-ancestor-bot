@@ -252,6 +252,10 @@ end
 -- (new pawn = new life = conditions may have reset)
 local lastPawnAddr = {}
 
+-- Declared here so both checkPawnChanges and checkPrimeConditionsDetailed can see it.
+-- Lua locals are only visible after their declaration point in the chunk.
+local perConditionState = {}
+
 local function checkPawnChanges()
     local players = enumerateOnlinePlayers()
     for _, p in ipairs(players) do
@@ -271,8 +275,6 @@ end
 -- Per-condition detailed tracking variant (more precise)
 -- Stores the full 10-bool vector per player so we can identify exactly which
 -- condition was newly gained. Runs alongside the count-based check.
-local perConditionState = {}  -- steam -> { [1..10] = bool }
-
 local function checkPrimeConditionsDetailed()
     if not config.notifyEachCondition then return end
     if not config.enabled then return end

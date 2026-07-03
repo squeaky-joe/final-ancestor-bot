@@ -593,6 +593,7 @@ end
 local function saveState(steam, slot, state)
     local body = writeStateJson(state, slot)
     local path = slotFile(steam, slot)
+    ensureDir(playerDir(steam))
     return writeAllAtomic(path, body)
 end
 
