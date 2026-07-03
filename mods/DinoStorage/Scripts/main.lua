@@ -950,6 +950,8 @@ local function cmdStore(steam, slot)
                 local ctrl2; pcall(function() ctrl2 = gm2:GetControllerBySteamId(steamSnap) end)
                 if ctrl2 == nil then return end
                 local pawn2 = livePawnFromCtrl(ctrl2); if pawn2 == nil then return end
+                -- Zero growth before killing so the corpse left behind is tiny
+                pcall(function() pawn2:SetGrowth(0) end)
                 pcall(function() pawn2:SetHealth(0) end)
             end)
         end
