@@ -227,7 +227,7 @@ local function captureState(pawn, steam)
     pcall(function() state.hunger    = pawn:GetHunger() end)
     pcall(function() state.thirst    = pawn:GetThirst() end)
     pcall(function() state.oxygen    = pawn:GetOxygen() end)
-    pcall(function() state.blood     = pawn:GetBloodLoss() end)
+    pcall(function() state.blood     = pawn:GetBlood() end)
     pcall(function() state.lockedDamage = pawn:GetLockedDamage() end)
     pcall(function() state.food      = pawn:GetFoodValue() end)
     pcall(function() state.waterLevel = pawn:GetWaterLevel() end)
@@ -801,9 +801,10 @@ local function applyState(pawn, steam, state)
     pcall(function() pawn:SetThirst(9999.0) end)
     pcall(function() pawn:SetFoodValue(9999.0) end)
     pcall(function() pawn:SetWaterLevel(9999.0) end)
-    -- Zero blood loss and locked damage immediately to prevent muscle spasms
-    pcall(function() pawn:SetBloodLoss(0.0) end)
+    -- Fill blood to max, zero locked damage and rotten value to prevent muscle spasms/vomiting
+    pcall(function() pawn:SetBlood(9999.0) end)
     pcall(function() pawn:SetLockedDamage(0.0) end)
+    pcall(function() pawn:SetRottenValue(0.0) end)
 
     -- 8. Skin
     if state.skin ~= nil then
@@ -931,9 +932,10 @@ local function applyState(pawn, steam, state)
                 end)
             end
 
-            -- Clear blood loss and locked damage to prevent muscle spasms
-            pcall(function() pawn2:SetBloodLoss(0.0) end)
+            -- Fill blood to max, zero locked damage and rotten value to prevent muscle spasms/vomiting
+            pcall(function() pawn2:SetBlood(9999.0) end)
             pcall(function() pawn2:SetLockedDamage(0.0) end)
+            pcall(function() pawn2:SetRottenValue(0.0) end)
 
             queueNotify(steamSnap, "Dino restored! Stats, hunger, thirst, and diets filled.")
         end)
