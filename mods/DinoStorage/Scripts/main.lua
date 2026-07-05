@@ -664,6 +664,14 @@ end
 -- State restoration
 -- ============================================================
 
+local function pcallLog(label, fn)
+    local ok, err = pcall(fn)
+    if not ok then
+        log(string.format("Retrieve fill FAILED (%s): %s", label, tostring(err)))
+    end
+    return ok
+end
+
 local function applyColor(cdata, field, c)
     if c == nil then return end
     local r, g, b = c.r or 0, c.g or 0, c.b or 0
@@ -683,6 +691,16 @@ local function applyState(pawn, steam, state)
     if state.growth ~= nil then
         pcall(function() pawn:SetGrowth(state.growth) end)
     end
+    -- Max vitals must be restored explicitly. SetGrowth only recomputes the
+    -- growth-derived default max; any max-stat bonus from mutations normally
+    -- applied via the equip-time hook never fires here because active mutation
+    -- slots are written directly to the struct (bypassing SetSlotNEquippedMutation
+    -- for reliability — see the quest-mutation fix). Without this, later fills to
+    -- 9999 clamp against a too-low max and the dino ends up under-fed/under-hydrated.
+    pcall(function() if state.maxHunger    ~= nil then pawn:SetMaxHunger(state.maxHunger) end end)
+    pcall(function() if state.maxThirst    ~= nil then pawn:SetMaxThirst(state.maxThirst) end end)
+    pcall(function() if state.maxStamina   ~= nil then pawn:SetMaxStamina(state.maxStamina) end end)
+    pcall(function() if state.maxFoodValue ~= nil then pawn:SetMaxFoodValue(state.maxFoodValue) end end)
 
     -- 2. Staged mutation apply (parent + elder slots, no UFunction per-slot)
     local mut = state.mutations or {}
@@ -795,12 +813,20 @@ local function applyState(pawn, steam, state)
     setVital("SetHealth",  state.health)
     setVital("SetStamina", state.stamina)
     setVital("SetOxygen",  state.oxygen)
-    -- Fill hunger/thirst/food/water immediately so there is no window between now and
+    -- Re-apply max vitals too — mutation field-writes above don't trigger the
+    -- equip-time max-stat recalculation, so the max must be set explicitly before
+    -- the current-value fill below or the fill clamps against a stale max.
+    setVital("SetMaxHunger",    state.maxHunger)
+    setVital("SetMaxThirst",    state.maxThirst)
+    setVital("SetMaxStamina",   state.maxStamina)
+    setVital("SetMaxFoodValue", state.maxFoodValue)
+    -- Fill hunger/thirst/food immediately so there is no window between now and
     -- the deferred block where the game can stamp dehydration or starvation conditions.
+    -- (WaterLevel has no setter — it's capture-only and restores to species default
+    -- on respawn — so we don't bother calling one here.)
     pcall(function() pawn:SetHunger(9999.0) end)
     pcall(function() pawn:SetThirst(9999.0) end)
     pcall(function() pawn:SetFoodValue(9999.0) end)
-    pcall(function() pawn:SetWaterLevel(9999.0) end)
     -- Fill blood to max, zero locked damage and rotten value to prevent muscle spasms/vomiting
     pcall(function() pawn:SetBlood(9999.0) end)
     pcall(function() pawn:SetLockedDamage(0.0) end)
@@ -900,44 +926,92 @@ local function applyState(pawn, steam, state)
                 pcall(function() pawn2:SetReplicatedMutationsData(liveMut2, true) end)
             end
 
-            -- Final growth and vitals re-apply
+            -- Growth and health/stamina re-apply
             if state.growth ~= nil then
                 pcall(function() pawn2:SetGrowth(state.growth) end)
             end
             if state.health   ~= nil then pcall(function() pawn2:SetHealth(state.health) end) end
             if state.stamina  ~= nil then pcall(function() pawn2:SetStamina(state.stamina) end) end
+            -- Active mutation slots were just field-written above, bypassing the normal
+            -- equip hook — so any max-stat bonus a mutation grants never applied. Restore
+            -- the captured max explicitly before the current-value fill below, or the
+            -- fill clamps against a too-low max (the actual cause of the malnutrition/
+            -- dehydration debuffs after a grow+mutate retrieve).
+            if state.maxHunger    ~= nil then pcall(function() pawn2:SetMaxHunger(state.maxHunger) end) end
+            if state.maxThirst    ~= nil then pcall(function() pawn2:SetMaxThirst(state.maxThirst) end) end
+            if state.maxStamina   ~= nil then pcall(function() pawn2:SetMaxStamina(state.maxStamina) end) end
+            if state.maxFoodValue ~= nil then pcall(function() pawn2:SetMaxFoodValue(state.maxFoodValue) end) end
 
-            -- Fill hunger, thirst, food value, and water level to max (game clamps to actual max)
-            pcall(function() pawn2:SetHunger(9999.0) end)
-            pcall(function() pawn2:SetThirst(9999.0) end)
-            pcall(function() pawn2:SetFoodValue(9999.0) end)
-            pcall(function() pawn2:SetWaterLevel(9999.0) end)
+            -- One more short settle window before the final current-value fill, matching
+            -- the general post-bulk-write settle guidance for field-written struct changes.
+            local fillHandle
+            fillHandle = LoopInGameThreadWithDelay(DEFERRED_MS, function()
+                if fillHandle ~= nil and CancelDelayedAction ~= nil then
+                    pcall(function() CancelDelayedAction(fillHandle) end)
+                end
 
-            -- Fill all diet nutrients to full and clear malnutrition
-            local nutr; pcall(function() nutr = pawn2.NutrientsStruct end)
-            if nutr ~= nil then
-                pcall(function()
-                    -- Fill normal diet nutrients to max
-                    nutr.CarbValue        = 9999.0
-                    nutr.ProteinValue     = 9999.0
-                    nutr.LipidValue       = 9999.0
-                    nutr.BonesValue       = 9999.0
-                    nutr.MagyValue        = 9999.0
-                    nutr.MushroomsValue   = 9999.0
-                    -- Zero debuff-causing nutrients (rotten flesh = food poisoning, cannibal = spasms/infertility)
-                    nutr.RottenFleshValue = 0.0
-                    nutr.CannibalValue    = 0.0
-                    nutr.bMalnutrition    = false
-                    pawn2:SetNutrientsStruct(nutr, true)
-                end)
-            end
+                local gm3 = findGameMode(); if gm3 == nil then return end
+                local ctrl3; pcall(function() ctrl3 = gm3:GetControllerBySteamId(steamSnap) end)
+                if ctrl3 == nil then return end
+                local pawn3 = livePawnFromCtrl(ctrl3)
+                if pawn3 == nil then return end
 
-            -- Fill blood to max, zero locked damage and rotten value to prevent muscle spasms/vomiting
-            pcall(function() pawn2:SetBlood(9999.0) end)
-            pcall(function() pawn2:SetLockedDamage(0.0) end)
-            pcall(function() pawn2:SetRottenValue(0.0) end)
+                -- Re-apply max vitals once more here in case anything since the last tick
+                -- (e.g. a late growth/mutation replication) reset them.
+                if state.maxHunger    ~= nil then pcallLog("SetMaxHunger",    function() pawn3:SetMaxHunger(state.maxHunger) end) end
+                if state.maxThirst    ~= nil then pcallLog("SetMaxThirst",    function() pawn3:SetMaxThirst(state.maxThirst) end) end
+                if state.maxStamina   ~= nil then pcallLog("SetMaxStamina",   function() pawn3:SetMaxStamina(state.maxStamina) end) end
+                if state.maxFoodValue ~= nil then pcallLog("SetMaxFoodValue",function() pawn3:SetMaxFoodValue(state.maxFoodValue) end) end
 
-            queueNotify(steamSnap, "Dino restored! Stats, hunger, thirst, and diets filled.")
+                -- Fill hunger, thirst, and food value to max (game clamps to actual max).
+                -- WaterLevel has no setter UFunction — it's capture-only and restores to
+                -- the species default on respawn, so we don't call one here.
+                pcallLog("SetHunger",    function() pawn3:SetHunger(9999.0) end)
+                pcallLog("SetThirst",    function() pawn3:SetThirst(9999.0) end)
+                pcallLog("SetFoodValue", function() pawn3:SetFoodValue(9999.0) end)
+
+                -- Fill all diet nutrients to full and clear malnutrition
+                local nutr; pcall(function() nutr = pawn3.NutrientsStruct end)
+                if nutr ~= nil then
+                    pcallLog("SetNutrientsStruct", function()
+                        -- Fill normal diet nutrients to max
+                        nutr.CarbValue        = 9999.0
+                        nutr.ProteinValue     = 9999.0
+                        nutr.LipidValue       = 9999.0
+                        nutr.BonesValue       = 9999.0
+                        nutr.MagyValue        = 9999.0
+                        nutr.MushroomsValue   = 9999.0
+                        -- Zero debuff-causing nutrients (rotten flesh = food poisoning, cannibal = spasms/infertility)
+                        nutr.RottenFleshValue = 0.0
+                        nutr.CannibalValue    = 0.0
+                        nutr.bMalnutrition    = false
+                        pawn3:SetNutrientsStruct(nutr, true)
+                    end)
+                else
+                    log("Retrieve fill FAILED (NutrientsStruct): could not read pawn3.NutrientsStruct")
+                end
+
+                -- Fill blood to max, zero locked damage and rotten value to prevent muscle spasms/vomiting
+                pcallLog("SetBlood",       function() pawn3:SetBlood(9999.0) end)
+                pcallLog("SetLockedDamage",function() pawn3:SetLockedDamage(0.0) end)
+                pcallLog("SetRottenValue", function() pawn3:SetRottenValue(0.0) end)
+
+                -- Log actual post-fill values so a clamp-against-stale-max (or a wrong
+                -- UFunction name swallowed by pcall) is visible in the mod log instead of
+                -- silently failing.
+                local h,t,f,w,mh,mt
+                pcall(function() h  = pawn3:GetHunger() end)
+                pcall(function() t  = pawn3:GetThirst() end)
+                pcall(function() f  = pawn3:GetFoodValue() end)
+                pcall(function() w  = pawn3:GetWaterLevel() end)
+                pcall(function() mh = pawn3:GetMaxHunger() end)
+                pcall(function() mt = pawn3:GetMaxThirst() end)
+                log(string.format(
+                    "Post-fill check for %s: hunger=%s/%s thirst=%s/%s food=%s water=%s",
+                    steamSnap, tostring(h), tostring(mh), tostring(t), tostring(mt), tostring(f), tostring(w)))
+
+                queueNotify(steamSnap, "Dino restored! Stats, hunger, thirst, and diets filled.")
+            end)
         end)
     end
 
