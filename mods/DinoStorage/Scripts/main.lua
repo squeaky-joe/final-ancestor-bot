@@ -8,7 +8,6 @@ local MOD_VERSION = "v001"
 
 local SAVED_DIR     = "Mods/DinoStorage/Saved"
 local STORED_DIR    = SAVED_DIR .. "/stored"
-local INDEX_FILE    = SAVED_DIR .. "/storage.json"
 local CMD_FLAG      = SAVED_DIR .. "/cmd.flag"
 local CONFIG_FILE   = SAVED_DIR .. "/config.json"
 local RELOAD_FLAG   = SAVED_DIR .. "/reload.flag"
@@ -609,55 +608,44 @@ local function deleteSlot(steam, slot)
     return os.remove(path)
 end
 
+-- Lists the .json slot filenames in a player's stored directory by shelling
+-- out to `dir /b`. There is no native directory-listing API in this Lua
+-- environment, but os.execute (used by ensureDir for mkdir) proves shelling
+-- out works, so we reuse that mechanism instead of maintaining a separate
+-- index file that can desync from the on-disk state.
+local function listStoredSlotNames(steam)
+    local names = {}
+    local dirPath  = playerDir(steam):gsub("/", "\\")
+    local tmpPath  = SAVED_DIR .. "/_listtmp_" .. tostring(steam) .. ".txt"
+    os.execute('dir /b "' .. dirPath .. '" > "' .. tmpPath:gsub("/", "\\") .. '" 2>nul')
+    local body = readAll(tmpPath)
+    os.remove(tmpPath)
+    if body == nil then return names end
+    for line in body:gmatch("[^\r\n]+") do
+        local name = line:match("^(.-)%.json$")
+        if name ~= nil then names[#names+1] = name end
+    end
+    return names
+end
+
+-- Source of truth is the filesystem: scan the player's stored/<steam>/ dir
+-- and read each slot file directly. No separate index to go stale or
+-- desync from the actual per-slot files.
 local function listSlots(steam)
     local slots = {}
-    local indexBody = readAll(INDEX_FILE)
-    if indexBody == nil then return slots end
-    -- Extract just the entries array to avoid matching the outer wrapper object,
-    -- which contains all users' data and would cause cross-user leakage.
-    local entriesBlock = string.match(indexBody, '"entries"%s*:%s*(%b[])')
-    if entriesBlock == nil then return slots end
-    local steamStr = tostring(steam)
-    for entry in entriesBlock:gmatch('%b{}') do
-        if jsonReadString(entry, "steam") == steamStr then
+    for _, slotName in ipairs(listStoredSlotNames(steam)) do
+        local state = loadState(steam, slotName)
+        if state ~= nil then
             slots[#slots+1] = {
-                slot      = jsonReadString(entry, "slot") or "default",
-                classPath = jsonReadString(entry, "classPath") or "",
-                growth    = jsonReadNumber(entry, "growth") or 0,
-                capturedAt = jsonReadNumber(entry, "capturedAt") or 0,
+                slot       = slotName,
+                classPath  = state.classPath or "",
+                growth     = state.growth or 0,
+                capturedAt = state.capturedAt or 0,
             }
         end
     end
+    table.sort(slots, function(a, b) return a.capturedAt < b.capturedAt end)
     return slots
-end
-
--- Rebuild index from all stored state files by scanning presenceRegistry
--- (we can't enumerate the FS, so we rebuild from known steams)
-local function updateIndex(steam, slot, state, remove)
-    local indexBody = readAll(INDEX_FILE) or '{"schema":4,"entries":[]}'
-    -- Remove old entry for this (steam, slot)
-    local entries = {}
-    for entry in indexBody:gmatch('%b{}') do
-        local s = jsonReadString(entry, "steam")
-        local sl = jsonReadString(entry, "slot") or "default"
-        if not (s == tostring(steam) and sl == slot) then
-            -- keep
-            local cp = jsonReadString(entry,"classPath")
-            if cp ~= nil then -- filter out the root object
-                entries[#entries+1] = entry
-            end
-        end
-    end
-    if not remove and state ~= nil then
-        local newEntry = string.format(
-            '{"steam":"%s","slot":"%s","classPath":"%s","growth":%.6f,"capturedAt":%d}',
-            jsonEscape(tostring(steam)), jsonEscape(slot),
-            jsonEscape(state.classPath or ""), state.growth or 0, state.capturedAt or 0
-        )
-        entries[#entries+1] = newEntry
-    end
-    local newIndex = '{"schema":4,"entries":[\n' .. table.concat(entries, ",\n") .. '\n]}'
-    writeAllAtomic(INDEX_FILE, newIndex)
 end
 
 -- ============================================================
@@ -1046,7 +1034,6 @@ local function cmdStore(steam, slot)
     end
 
     if saveState(steam, slot, state) then
-        updateIndex(steam, slot, state, false)
         queueNotify(steam, string.format("Dino parked in slot '%s'. Returning to spawn in 3 seconds...", slot))
         -- Deferred kill
         if LoopInGameThreadWithDelay ~= nil then
@@ -1198,7 +1185,6 @@ local function pollCmdFlag()
             elseif verb == "delete" then
                 local slot = extraArgs[1] or "default"
                 deleteSlot(steam, slot)
-                updateIndex(steam, slot, nil, true)
                 ok = true; msg = "slot deleted"
             elseif verb == "rename" then
                 local oldSlot = extraArgs[1] or "default"
@@ -1216,11 +1202,6 @@ local function pollCmdFlag()
                         else
                             local renameOk = os.rename(oldPath, newPath)
                             if renameOk then
-                                local state = loadState(steam, newSlot)
-                                if state then
-                                    updateIndex(steam, oldSlot, nil, true)
-                                    updateIndex(steam, newSlot, state, false)
-                                end
                                 ok = true; msg = string.format("renamed '%s' to '%s'", oldSlot, newSlot)
                             else
                                 ok = false; msg = "rename failed"
