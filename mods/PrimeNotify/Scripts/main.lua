@@ -242,12 +242,12 @@ CONDITION_NAMES = {
 }
 
 CONDITION_DESCRIPTIONS = {
-    [1]  = "Visit at least 4 different Patrol Zones (marked by a yellow circle)",
+    [1]  = "Visit at least 4 different Patrol Zones",
     [2]  = "Successfully nest in a structure like a cave or building",
     [3]  = "Maintain a perfect diet without eating anything other than your species' preferred food",
     [4]  = "Visit a Mass Migration Zone (this condition is not available in current version)",
-    [5]  = "Visit at least 2 different Migration Zones (marked by an orange circle)",
-    [6]  = "Visit any Sanctuary Zone (marked by a blue circle) as a juvenile dinosaur",
+    [5]  = "Visit at least 2 different Migration Zones",
+    [6]  = "Visit any Sanctuary Zone as a juvenile dinosaur",
     [7]  = "Never become infertile during your life cycle",
     [8]  = "Never get muscle spasms during your life cycle",
     [9]  = "Successfully raise at least one baby dinosaur of your species to subadult stage",
@@ -422,10 +422,35 @@ local function checkPrimeConditions()
                     lastNotifiedCount = 0
                 }
                 conditionState[p.steam] = {}
+                local baseline = {}
                 for i = 1, 10 do
                     conditionState[p.steam][i] = pe["bPrimeCondition"..i] == true
+                    if conditionState[p.steam][i] then baseline[#baseline+1] = i end
                 end
+                log(string.format("[PrimeDebug] steam=%s baseline: [%s] already true (%d/10)",
+                    p.steam, table.concat(baseline, ","), condCount))
             else
+                -- Log every per-condition transition unconditionally (independent of
+                -- notifyEachCondition/count gating below) so bPrimeConditionN -> real
+                -- condition mapping can be confirmed by watching the server log while testing.
+                if conditionState[p.steam] ~= nil then
+                    for i = 1, 10 do
+                        local current = pe["bPrimeCondition"..i] == true
+                        local previous = conditionState[p.steam][i]
+                        if current and not previous then
+                            log(string.format(
+                                "[PrimeDebug] CONDITION GAINED steam=%s bPrimeCondition%d -> true (name=%s) (%d/10 total)",
+                                p.steam, i, CONDITION_NAMES[i] or ("condition "..i), condCount
+                            ))
+                        elseif not current and previous then
+                            log(string.format(
+                                "[PrimeDebug] CONDITION LOST steam=%s bPrimeCondition%d -> false (name=%s)",
+                                p.steam, i, CONDITION_NAMES[i] or ("condition "..i)
+                            ))
+                        end
+                    end
+                end
+
                 -- Check for newly gained conditions (count-based approach)
                 if config.notifyEachCondition and condCount > prev.condCount then
                     -- Only notify about new conditions since last notification
@@ -442,13 +467,13 @@ local function checkPrimeConditions()
                                 newConditions = newConditions + 1
                                 local name = CONDITION_NAMES[i] or ("condition "..i)
                                 local desc = CONDITION_DESCRIPTIONS[i] or ""
-                                
+
                                 -- Notify with detailed information
                                 queueNotify(p.steam, string.format(
                                     "[Prime] Quest complete: %s (%d/10 conditions)\n%s",
                                     name, condCount, desc
                                 ))
-                                
+
                                 -- Track that we've notified about this specific condition
                                 notifiedConditions[p.steam..":"..i] = true
                             end
