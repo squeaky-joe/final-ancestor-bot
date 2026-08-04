@@ -9,3 +9,11 @@ docker/
 bot/dist
 bot/node_modules
 bot/src/db/migrations/
+# Added by code-review-graph
+.code-review-graph/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/

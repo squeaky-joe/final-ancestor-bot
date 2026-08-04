@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "cat \u003e/dev/null || true; command -v code-review-graph \u003e/dev/null 2\u003e\u00261 || exit 0; git rev-parse --git-dir \u003e/dev/null 2\u003e\u00261 \u0026\u0026 code-review-graph update --skip-flows --repo \"$(git rev-parse --show-toplevel 2\u003e/dev/null)\" || true",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit|Write"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "cat \u003e/dev/null || true; command -v code-review-graph \u003e/dev/null 2\u003e\u00261 || exit 0; git rev-parse --git-dir \u003e/dev/null 2\u003e\u00261 \u0026\u0026 code-review-graph status --repo \"$(git rev-parse --show-toplevel 2\u003e/dev/null)\" || echo 'Not a git repo, skipping'",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      },
+      {
+        "hooks": [
+          {
+            "command": "bd prime --hook-json",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ]
+  }
+}
