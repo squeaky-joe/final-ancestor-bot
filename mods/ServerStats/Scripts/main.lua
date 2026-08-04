@@ -1,10 +1,10 @@
--- ServerStats v001
+-- ServerStats v002
 -- Real-time server statistics tracking for The Isle Evrima.
 -- Tracks player count, species distribution, and diet types.
 -- Updates Discord channel with live data.
 
 local MOD_NAME    = "ServerStats"
-local MOD_VERSION = "v001"
+local MOD_VERSION = "v002"
 
 local SAVED_DIR   = "Mods/ServerStats/Saved"
 local CONFIG_FILE = SAVED_DIR .. "/config.json"
@@ -155,6 +155,7 @@ end
 -- Server stats collection and reporting
 -- ============================================================
 
+-- Helper function to get species from pawn (simplified version)
 local function getPlayerSpecies(pawn)
     if pawn == nil then return "Unknown" end
     
@@ -165,21 +166,77 @@ local function getPlayerSpecies(pawn)
     
     if not ok or speciesName == nil then return "Unknown" end
     
+    -- Clean up the species name
+    speciesName = string.gsub(speciesName, "BP_", "")
+    speciesName = string.gsub(speciesName, "_C", "")
+    
     return speciesName
 end
 
+-- Helper function to get diet type from pawn (simplified version)
 local function getPlayerDiet(pawn)
     if pawn == nil then return "Unknown" end
     
-    -- Try to determine diet type from the pawn's properties
-    local isCarnivore = false
-    local isHerbivore = false
-    local isOmnivore = false
+    -- In a real implementation, this would be more complex and might require:
+    -- - Checking the pawn's class properties 
+    -- - Looking at specific traits or characteristics
+    -- For now we'll keep it simple since this is just the framework
     
-    -- This would require more detailed game data access, for now we'll use a simplified approach
-    -- In practice, this would be more complex to determine from the pawn data
+    return "Unknown"  -- Placeholder - would need more game-specific data access
+end
+
+-- Function to get the most recent stats file content (for bot to read)
+local function getLatestStats()
+    -- This would normally be accessed by the Discord bot from the stats file
+    -- For now, we'll just collect stats as before
     
-    return "Unknown"  -- Simplified - real implementation would be more robust
+    local players = enumerateOnlinePlayers()
+    
+    local stats = {
+        timestamp = os.time(),
+        playerCount = #players,
+        speciesDistribution = {},
+        dietTypes = {
+            carnivore = 0,
+            herbivore = 0,
+            omnivore = 0,
+            unknown = 0
+        },
+        speciesCount = {}
+    }
+    
+    -- Count players by species and diet type
+    for _, p in ipairs(players) do
+        if p.pawn ~= nil then
+            local species = getPlayerSpecies(p.pawn)
+            local diet = getPlayerDiet(p.pawn)
+            
+            -- Update species count
+            if stats.speciesCount[species] == nil then
+                stats.speciesCount[species] = 0
+            end
+            stats.speciesCount[species] = stats.speciesCount[species] + 1
+            
+            -- Update species distribution for the UI
+            if stats.speciesDistribution[species] == nil then
+                stats.speciesDistribution[species] = 0
+            end
+            stats.speciesDistribution[species] = stats.speciesDistribution[species] + 1
+            
+            -- Count diet types (simplified)
+            if diet == "Carnivore" then
+                stats.dietTypes.carnivore = stats.dietTypes.carnivore + 1
+            elseif diet == "Herbivore" then
+                stats.dietTypes.herbivore = stats.dietTypes.herbivore + 1
+            elseif diet == "Omnivore" then
+                stats.dietTypes.omnivore = stats.dietTypes.omnivore + 1
+            else
+                stats.dietTypes.unknown = stats.dietTypes.unknown + 1
+            end
+        end
+    end
+    
+    return stats
 end
 
 local function collectServerStats()
@@ -218,7 +275,7 @@ local function collectServerStats()
             end
             stats.speciesDistribution[species] = stats.speciesDistribution[species] + 1
             
-            -- Count diet types (simplified - real implementation would be more robust)
+            -- Count diet types (simplified)
             if diet == "Carnivore" then
                 stats.dietTypes.carnivore = stats.dietTypes.carnivore + 1
             elseif diet == "Herbivore" then
@@ -250,6 +307,73 @@ local function jsonEscape(s)
     s = tostring(s)
     s = s:gsub("\\","\\\\"):gsub('"','\\"'):gsub("\n","\\n"):gsub("\r","\\r"):gsub("\t","\\t")
     return s
+end
+
+-- ============================================================
+-- IPC endpoint for Discord bot to get current stats
+-- This is the function that will be called by CommandBridge
+-- ============================================================
+
+function GetServerStats()
+    -- For now, we'll return a simplified version that can be read by the Discord bot
+    -- In practice, the bot would read from the NDJSON file directly
+    local players = enumerateOnlinePlayers()
+    
+    local stats = {
+        timestamp = os.time(),
+        playerCount = #players,
+        speciesDistribution = {},
+        dietTypes = {
+            carnivore = 0,
+            herbivore = 0,
+            omnivore = 0,
+            unknown = 0
+        },
+        speciesCount = {}
+    }
+    
+    -- Count players by species and diet type
+    for _, p in ipairs(players) do
+        if p.pawn ~= nil then
+            local species = getPlayerSpecies(p.pawn)
+            local diet = getPlayerDiet(p.pawn)
+            
+            -- Update species count
+            if stats.speciesCount[species] == nil then
+                stats.speciesCount[species] = 0
+            end
+            stats.speciesCount[species] = stats.speciesCount[species] + 1
+            
+            -- Update species distribution for the UI
+            if stats.speciesDistribution[species] == nil then
+                stats.speciesDistribution[species] = 0
+            end
+            stats.speciesDistribution[species] = stats.speciesDistribution[species] + 1
+            
+            -- Count diet types (simplified)
+            if diet == "Carnivore" then
+                stats.dietTypes.carnivore = stats.dietTypes.carnivore + 1
+            elseif diet == "Herbivore" then
+                stats.dietTypes.herbivore = stats.dietTypes.herbivore + 1
+            elseif diet == "Omnivore" then
+                stats.dietTypes.omnivore = stats.dietTypes.omnivore + 1
+            else
+                stats.dietTypes.unknown = stats.dietTypes.unknown + 1
+            end
+        end
+    end
+    
+    -- Return JSON string for the bot to parse
+    local jsonResult = string.format(
+        '{"timestamp":%d,"playerCount":%d,"speciesDistribution":%s,"dietTypes":%s,"speciesCount":%s}',
+        stats.timestamp,
+        stats.playerCount,
+        string.gsub(jsonEscape(tostring(stats.speciesDistribution)), '"', '\\"'),
+        string.gsub(jsonEscape(tostring(stats.dietTypes)), '"', '\\"'),
+        string.gsub(jsonEscape(tostring(stats.speciesCount)), '"', '\\"')
+    )
+    
+    return jsonResult
 end
 
 -- ============================================================

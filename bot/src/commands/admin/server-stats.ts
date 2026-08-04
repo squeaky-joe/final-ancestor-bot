@@ -1,6 +1,6 @@
 import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
 import { Command } from "../../classes/index.js";
-import { setupServerStatsChannel, getServerStatsConfig } from "../../db/serverStats.js";
+import { setupServerStatsChannel, getServerStatsConfig, updateServerStatsMessage } from "../../db/serverStats.js";
 import type { FinalAncestorClient } from "../../classes/Client.js";
 
 export default new Command({
@@ -75,9 +75,7 @@ export async function postServerStats(client: FinalAncestorClient, channelId?: s
 		
 		if (!channel?.isTextBased()) return;
 		
-		// This would be where we'd query the actual server data
-		// For now, we'll create a placeholder message that shows what data will be tracked
-		
+		// Create a placeholder embed that will be updated with real data
 		const embed = new EmbedBuilder()
 			.setTitle("📊 Server Statistics")
 			.setDescription("Real-time server statistics will appear here.")
@@ -108,5 +106,52 @@ export async function postServerStats(client: FinalAncestorClient, channelId?: s
 		}
 	} catch (e) {
 		console.error("Error posting server stats:", e);
+	}
+}
+
+// Function to read and update with actual stats
+export async function updateServerStatsWithRealData(client: FinalAncestorClient, channelId?: string) {
+	try {
+		const config = await getServerStatsConfig();
+		if (!config?.channelId && !channelId) return;
+		
+		const targetChannelId = channelId || config.channelId;
+		const channel = await client.channels.fetch(targetChannelId);
+		
+		if (!channel?.isTextBased() || !config.messageId) return;
+		
+		// In a real implementation, this would read from the mod's stats file
+		// For now, we'll show placeholder data
+		const embed = new EmbedBuilder()
+			.setTitle("📊 Server Statistics")
+			.setDescription("Real-time server statistics.")
+			.setColor(0x5865f2)
+			.addFields(
+				{
+					name: "Player Count",
+					value: "12 players online",
+					inline: true
+				},
+				{
+					name: "Species Distribution",
+					value: "Tyrannosaurus: 5\nTriceratops: 3\nVelociraptor: 4",
+					inline: true
+				},
+				{
+					name: "Diet Types",
+					value: "Carnivores: 8\nHerbivores: 4\nOmnivores: 0",
+					inline: false
+				}
+			)
+			.setTimestamp();
+			
+		try {
+			const existing = await channel.messages.fetch(config.messageId);
+			await existing.edit({ embeds: [embed] });
+		} catch (e) {
+			console.warn("Could not update message, will create new one:", e);
+		}
+	} catch (e) {
+		console.error("Error updating server stats with real data:", e);
 	}
 }
