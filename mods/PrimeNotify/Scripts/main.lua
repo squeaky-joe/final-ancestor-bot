@@ -229,12 +229,12 @@ local notifiedConditions = {}
 -- Enhanced Prime Condition Descriptions with specific requirements
 -- These are the 10 official prime conditions in The Isle Evrima:
 CONDITION_NAMES = {
-    [1]  = "Visit 4 Patrol Zones",
+    [1]  = "Visit a Sanctuary as Juvenile",
     [2]  = "Get Nested In",
     [3]  = "Get Perfect Diet (1% of each)",
     [4]  = "Visit Mass Migration Zone",
     [5]  = "Visit 2 Migration Zones",
-    [6]  = "Visit a Sanctuary as Juvenile",
+    [6]  = "Visit 4 Patrol Zones",
     [7]  = "Never be infertile",
     [8]  = "Never get muscle spasms",
     [9]  = "Raise children to subadult",
@@ -242,12 +242,12 @@ CONDITION_NAMES = {
 }
 
 CONDITION_DESCRIPTIONS = {
-    [1]  = "Visit at least 4 different Patrol Zones",
+    [1]  = "Visit any Sanctuary Zone as a juvenile dinosaur",
     [2]  = "Successfully nest in a structure like a cave or building",
     [3]  = "Maintain a perfect diet without eating anything other than your species' preferred food",
     [4]  = "Visit a Mass Migration Zone (this condition is not available in current version)",
     [5]  = "Visit at least 2 different Migration Zones",
-    [6]  = "Visit any Sanctuary Zone as a juvenile dinosaur",
+    [6]  = "Visit at least 4 different Patrol Zones",
     [7]  = "Never become infertile during your life cycle",
     [8]  = "Never get muscle spasms during your life cycle",
     [9]  = "Successfully raise at least one baby dinosaur of your species to subadult stage",
