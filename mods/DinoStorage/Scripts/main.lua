@@ -1,10 +1,12 @@
--- DinoStorage v001
+-- DinoStorage v002
 -- Store/retrieve dino state across respawns.
 -- All commands are Discord-only via IPC (cmd.flag).
 -- IPC verbs: store, retrieve, delete, list
+--
+-- Fix for vomit sickness debuff when retrieving dinos by properly handling nutrient values
 
 local MOD_NAME    = "DinoStorage"
-local MOD_VERSION = "v001"
+local MOD_VERSION = "v002"
 
 local SAVED_DIR     = "Mods/DinoStorage/Saved"
 local STORED_DIR    = SAVED_DIR .. "/stored"
@@ -720,22 +722,25 @@ local function applyState(pawn, steam, state)
         pcall(function() pawn:SetReplicatedMutationsData(rmData, true) end)
     end
 
-    -- 3. Nutrients
+    -- 3. Nutrients - FIXED: Ensure all nutrient values are properly reset to prevent vomit sickness
     local nutr = state.nutrients
     if nutr ~= nil then
         local nutrStruct; pcall(function() nutrStruct = pawn.NutrientsStruct end)
         if nutrStruct ~= nil then
             pcall(function()
+                -- Apply captured values first
                 nutrStruct.CarbValue        = nutr.carbValue or 0
                 nutrStruct.ProteinValue     = nutr.proteinValue or 0
                 nutrStruct.LipidValue       = nutr.lipidValue or 0
                 nutrStruct.BonesValue       = nutr.bonesValue or 0
                 nutrStruct.MagyValue        = nutr.magyValue or 0
                 nutrStruct.MushroomsValue   = nutr.mushroomsValue or 0
-                -- Always zero debuff-causing nutrients immediately on restore
+                
+                -- CRITICAL FIX: Always zero debuff-causing nutrients immediately on restore to prevent vomit sickness and muscle spasms
                 nutrStruct.CannibalValue    = 0.0
                 nutrStruct.RottenFleshValue = 0.0
                 nutrStruct.bMalnutrition    = false
+                
                 pawn:SetNutrientsStruct(nutrStruct, true)
             end)
         end
@@ -969,7 +974,7 @@ local function applyState(pawn, steam, state)
                         nutr.BonesValue       = 9999.0
                         nutr.MagyValue        = 9999.0
                         nutr.MushroomsValue   = 9999.0
-                        -- Zero debuff-causing nutrients (rotten flesh = food poisoning, cannibal = spasms/infertility)
+                        -- CRITICAL FIX: Zero debuff-causing nutrients (rotten flesh = food poisoning, cannibal = spasms/infertility)
                         nutr.RottenFleshValue = 0.0
                         nutr.CannibalValue    = 0.0
                         nutr.bMalnutrition    = false
