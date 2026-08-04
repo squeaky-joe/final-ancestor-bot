@@ -14,6 +14,8 @@ local MOD_VERSION = "v005"
 local SAVED_DIR   = "Mods/PrimeNotify/Saved"
 local CONFIG_FILE = SAVED_DIR .. "/config.json"
 local RELOAD_FLAG = SAVED_DIR .. "/reload.flag"
+local INBOX_PATH   = SAVED_DIR .. "/inbox.ndjson"
+local RESULTS_FILE = "Mods/CommandBridge/Saved/results.ndjson"
 
 local POLL_INTERVAL_MS = 5000  -- check prime conditions every 5s
 
@@ -25,9 +27,19 @@ end
 -- File helpers
 -- ============================================================
 
+local function fileExists(path)
+    local f = io.open(path, "rb"); if f == nil then return false end
+    f:close(); return true
+end
+
 local function readAll(path)
     local f = io.open(path, "rb"); if f == nil then return nil end
     local body = f:read("*a"); f:close(); return body
+end
+
+local function appendLine(path, line)
+    local f = io.open(path, "ab"); if f == nil then return false end
+    f:write(line); f:write("\n"); f:close(); return true
 end
 
 local function consumeFlag(path)
@@ -52,6 +64,17 @@ local function jsonReadBool(body, key)
     if v == "true" then return true end
     if v == "false" then return false end
     return nil
+end
+
+local function jsonReadString(body, key)
+    return string.match(body or "", '"' .. key .. '"%s*:%s*"([^"]*)"')
+end
+
+local function jsonEscape(s)
+    if s == nil then return "" end
+    s = tostring(s)
+    s = s:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
+    return s
 end
 
 -- ============================================================
@@ -317,6 +340,61 @@ local function getPlayerProgress(steam)
     return progress
 end
 
+-- ============================================================
+-- IPC — serve prime_progress requests routed from CommandBridge
+-- ============================================================
+
+local function encodeProgressJson(progress)
+    local condsJson = "["
+    for i, c in ipairs(progress.conditions) do
+        if i > 1 then condsJson = condsJson .. "," end
+        condsJson = condsJson .. string.format(
+            '{"index":%d,"name":"%s","description":"%s","completed":%s}',
+            c.index, jsonEscape(c.name), jsonEscape(c.description), tostring(c.completed == true)
+        )
+    end
+    condsJson = condsJson .. "]"
+
+    return string.format(
+        '{"conditionsMet":%d,"totalConditions":%d,"isEligible":%s,"zoneCounts":{"migration":%d,"patrol":%d,"sanctuary":%d},"conditions":%s}',
+        progress.conditionsMet, progress.totalConditions, tostring(progress.isEligible == true),
+        progress.zoneCounts.migration, progress.zoneCounts.patrol, progress.zoneCounts.sanctuary,
+        condsJson
+    )
+end
+
+local function emitIpcResult(id, steam, ok, msg)
+    local line = string.format(
+        '{"id":"%s","ts":%d,"source":"PrimeNotify","steam":"%s","ok":%s,"msg":"%s"}',
+        jsonEscape(tostring(id or "")), os.time(), jsonEscape(tostring(steam or "")),
+        tostring(ok == true), jsonEscape(msg or "")
+    )
+    appendLine(RESULTS_FILE, line)
+end
+
+local function pollInbox()
+    if not fileExists(INBOX_PATH) then return end
+    local stash = INBOX_PATH .. ".processing"
+    os.remove(stash)
+    os.rename(INBOX_PATH, stash)
+    local body = readAll(stash)
+    if body == nil or body == "" then os.remove(stash); return end
+
+    for line in body:gmatch("[^\n]+") do
+        local id    = jsonReadString(line, "id")
+        local steam = jsonReadString(line, "steam") or ""
+
+        local callOk, progress = pcall(getPlayerProgress, steam)
+        if callOk then
+            emitIpcResult(id, steam, true, encodeProgressJson(progress))
+        else
+            emitIpcResult(id, steam, false, "error: " .. tostring(progress))
+        end
+    end
+
+    os.remove(stash)
+end
+
 local function checkPrimeConditions()
     if not config.enabled then return end
 
@@ -327,9 +405,9 @@ local function checkPrimeConditions()
             local ok = pcall(function() pe = p.pawn:GetEligiblePrimeElderData() end)
             if not ok or pe == nil then
                 -- Skip players that we can't access prime data for
-                continue
+                goto continue_prime
             end
-            
+
             local condCount = countConditions(pe)
             local isEligible = pe.bIsEligiblePrime == true
             
@@ -418,6 +496,7 @@ local function checkPrimeConditions()
                 end
             end
         end
+        ::continue_prime::
     end
 end
 
@@ -476,6 +555,7 @@ if LoopInGameThreadWithDelay ~= nil then
         safeCall("checkPawnChanges", checkPawnChanges)
         safeCall("checkPrimeConditions", checkPrimeConditions)
         safeCall("drainNotifies", drainNotifies)
+        safeCall("pollInbox", pollInbox)
 
         local reload = consumeFlag(RELOAD_FLAG)
         if reload ~= nil and RestartCurrentMod ~= nil then
@@ -485,8 +565,3 @@ if LoopInGameThreadWithDelay ~= nil then
 end
 
 log(string.format("Loaded; version=%s", MOD_VERSION))
-
--- Export the function for IPC calls (this will be called from CommandBridge)
-function GetPlayerPrimeProgress(steam)
-    return getPlayerProgress(steam)
-end

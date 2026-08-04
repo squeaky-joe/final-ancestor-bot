@@ -560,6 +560,10 @@ handlers.ps        = function(steam, argsLine, cmdId)
 end
 handlers.playerstats = handlers.ps
 
+handlers.prime_progress = function(steam, argsLine, cmdId)
+    return writeToInbox("PrimeNotify", cmdId, steam, {})
+end
+
 local DINO_STORAGE_VERBS = {
     dino_store=true, dino_retrieve=true, dino_delete=true, dino_list=true,
     dino_setmax=true, dino_clearmax=true, dino_getmax=true,

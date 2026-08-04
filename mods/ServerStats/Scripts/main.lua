@@ -56,6 +56,22 @@ local function jsonReadBool(body, key)
     return nil
 end
 
+local function jsonEscape(s)
+    if s == nil then return "" end
+    s = tostring(s)
+    s = s:gsub("\\","\\\\"):gsub('"','\\"'):gsub("\n","\\n"):gsub("\r","\\r"):gsub("\t","\\t")
+    return s
+end
+
+-- Encode a flat string->number table (e.g. species counts) as a JSON object.
+local function encodeCountMap(t)
+    local parts = {}
+    for k, v in pairs(t) do
+        parts[#parts + 1] = string.format('"%s":%d', jsonEscape(k), v)
+    end
+    return "{" .. table.concat(parts, ",") .. "}"
+end
+
 -- ============================================================
 -- Config
 -- ============================================================
@@ -293,20 +309,12 @@ local function collectServerStats()
         '{"timestamp":%d,"playerCount":%d,"speciesDistribution":%s,"dietTypes":%s,"speciesCount":%s}',
         stats.timestamp,
         stats.playerCount,
-        string.gsub(jsonEscape(tostring(stats.speciesDistribution)), '"', '\\"'),
-        string.gsub(jsonEscape(tostring(stats.dietTypes)), '"', '\\"'),
-        string.gsub(jsonEscape(tostring(stats.speciesCount)), '"', '\\"')
+        encodeCountMap(stats.speciesDistribution),
+        encodeCountMap(stats.dietTypes),
+        encodeCountMap(stats.speciesCount)
     )
-    
-    appendLine(STATS_FILE, jsonStats)
-end
 
--- JSON escape function (simplified version)
-local function jsonEscape(s)
-    if s == nil then return "" end
-    s = tostring(s)
-    s = s:gsub("\\","\\\\"):gsub('"','\\"'):gsub("\n","\\n"):gsub("\r","\\r"):gsub("\t","\\t")
-    return s
+    appendLine(STATS_FILE, jsonStats)
 end
 
 -- ============================================================
@@ -368,11 +376,11 @@ function GetServerStats()
         '{"timestamp":%d,"playerCount":%d,"speciesDistribution":%s,"dietTypes":%s,"speciesCount":%s}',
         stats.timestamp,
         stats.playerCount,
-        string.gsub(jsonEscape(tostring(stats.speciesDistribution)), '"', '\\"'),
-        string.gsub(jsonEscape(tostring(stats.dietTypes)), '"', '\\"'),
-        string.gsub(jsonEscape(tostring(stats.speciesCount)), '"', '\\"')
+        encodeCountMap(stats.speciesDistribution),
+        encodeCountMap(stats.dietTypes),
+        encodeCountMap(stats.speciesCount)
     )
-    
+
     return jsonResult
 end
 
