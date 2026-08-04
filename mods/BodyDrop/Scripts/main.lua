@@ -43,6 +43,8 @@ local SPECIES_PATHS = {
     Troodon            = "/Game/TheIsle/Core/Characters/Dinosaurs/Troodon/BP_Troodon.BP_Troodon_C",
     Beipiaosaurus      = "/Game/TheIsle/Core/Characters/Dinosaurs/Beipiaosaurus/BP_Beipiaosaurus.BP_Beipiaosaurus_C",
     Compsognathus      = "/Game/TheIsle/Core/Characters/Dinosaurs/Compsognathus/BP_Compsognathus.BP_Compsognathus_C",
+    Kentrosaurus       = "/Game/TheIsle/Core/Characters/Dinosaurs/Kentrosaurus/BP_Kentrosaurus.BP_Kentrosaurus_C",
+    Austroraptor       = "/Game/TheIsle/Core/Characters/Dinosaurs/Austroraptor/BP_Austroraptor.BP_Austroraptor_C",
 }
 
 -- ============================================================

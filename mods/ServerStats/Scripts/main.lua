@@ -6,12 +6,14 @@
 local MOD_NAME    = "ServerStats"
 local MOD_VERSION = "v002"
 
-local SAVED_DIR   = "Mods/ServerStats/Saved"
-local CONFIG_FILE = SAVED_DIR .. "/config.json"
-local RELOAD_FLAG = SAVED_DIR .. "/reload.flag"
-local STATS_FILE  = SAVED_DIR .. "/stats.ndjson"
+local SAVED_DIR    = "Mods/ServerStats/Saved"
+local CONFIG_FILE  = SAVED_DIR .. "/config.json"
+local RELOAD_FLAG  = SAVED_DIR .. "/reload.flag"
+local STATS_FILE   = SAVED_DIR .. "/stats.ndjson"
+local INBOX_PATH   = SAVED_DIR .. "/inbox.ndjson"
+local RESULTS_FILE = "Mods/CommandBridge/Saved/results.ndjson"
 
-local POLL_INTERVAL_MS = 30000  -- check stats every 30s
+local POLL_INTERVAL_MS = 5000  -- check stats / poll IPC inbox every 5s
 
 local function log(msg)
     print(string.format("[%s] %s\n", MOD_NAME, tostring(msg)))
@@ -20,6 +22,11 @@ end
 -- ============================================================
 -- File helpers
 -- ============================================================
+
+local function fileExists(path)
+    local f = io.open(path, "rb"); if f == nil then return false end
+    f:close(); return true
+end
 
 local function readAll(path)
     local f = io.open(path, "rb"); if f == nil then return nil end
@@ -61,6 +68,10 @@ local function jsonEscape(s)
     s = tostring(s)
     s = s:gsub("\\","\\\\"):gsub('"','\\"'):gsub("\n","\\n"):gsub("\r","\\r"):gsub("\t","\\t")
     return s
+end
+
+local function jsonReadString(body, key)
+    return string.match(body or "", '"' .. key .. '"%s*:%s*"([^"]*)"')
 end
 
 -- Encode a flat string->number table (e.g. species counts) as a JSON object.
@@ -189,25 +200,46 @@ local function getPlayerSpecies(pawn)
     return speciesName
 end
 
--- Helper function to get diet type from pawn (simplified version)
-local function getPlayerDiet(pawn)
-    if pawn == nil then return "Unknown" end
-    
-    -- In a real implementation, this would be more complex and might require:
-    -- - Checking the pawn's class properties 
-    -- - Looking at specific traits or characteristics
-    -- For now we'll keep it simple since this is just the framework
-    
-    return "Unknown"  -- Placeholder - would need more game-specific data access
+-- Species -> diet lookup (matches the playable roster in BodyDrop/Scripts/main.lua)
+local SPECIES_DIET = {
+    Tyrannosaurus      = "Carnivore",
+    Allosaurus         = "Carnivore",
+    Carnotaurus        = "Carnivore",
+    Ceratosaurus       = "Carnivore",
+    Deinosuchus        = "Carnivore",
+    Dilophosaurus      = "Carnivore",
+    Herrerasaurus      = "Carnivore",
+    Pteranodon         = "Carnivore",
+    Troodon            = "Carnivore",
+    Compsognathus      = "Carnivore",
+    Austroraptor       = "Carnivore",
+
+    Triceratops        = "Herbivore",
+    Stegosaurus        = "Herbivore",
+    Diabloceratops     = "Herbivore",
+    Dryosaurus         = "Herbivore",
+    Hypsilophodon      = "Herbivore",
+    Maiasaura          = "Herbivore",
+    Pachycephalosaurus = "Herbivore",
+    Tenontosaurus      = "Herbivore",
+    Beipiaosaurus      = "Herbivore",
+    Kentrosaurus       = "Herbivore",
+
+    Gallimimus         = "Omnivore",
+    Omniraptor         = "Omnivore",
+}
+
+-- Helper function to get diet type for a (already cleaned) species name
+local function getPlayerDiet(species)
+    return SPECIES_DIET[species] or "Unknown"
 end
 
--- Function to get the most recent stats file content (for bot to read)
-local function getLatestStats()
-    -- This would normally be accessed by the Discord bot from the stats file
-    -- For now, we'll just collect stats as before
-    
+-- Build a snapshot of the current server state (player count, species
+-- distribution, diet type breakdown). Shared by the periodic file logger
+-- and the IPC endpoint below.
+local function collectStatsSnapshot()
     local players = enumerateOnlinePlayers()
-    
+
     local stats = {
         timestamp = os.time(),
         playerCount = #players,
@@ -217,29 +249,19 @@ local function getLatestStats()
             herbivore = 0,
             omnivore = 0,
             unknown = 0
-        },
-        speciesCount = {}
+        }
     }
-    
-    -- Count players by species and diet type
+
     for _, p in ipairs(players) do
         if p.pawn ~= nil then
             local species = getPlayerSpecies(p.pawn)
-            local diet = getPlayerDiet(p.pawn)
-            
-            -- Update species count
-            if stats.speciesCount[species] == nil then
-                stats.speciesCount[species] = 0
-            end
-            stats.speciesCount[species] = stats.speciesCount[species] + 1
-            
-            -- Update species distribution for the UI
+            local diet = getPlayerDiet(species)
+
             if stats.speciesDistribution[species] == nil then
                 stats.speciesDistribution[species] = 0
             end
             stats.speciesDistribution[species] = stats.speciesDistribution[species] + 1
-            
-            -- Count diet types (simplified)
+
             if diet == "Carnivore" then
                 stats.dietTypes.carnivore = stats.dietTypes.carnivore + 1
             elseif diet == "Herbivore" then
@@ -251,137 +273,59 @@ local function getLatestStats()
             end
         end
     end
-    
+
     return stats
+end
+
+local function statsToJson(stats)
+    return string.format(
+        '{"timestamp":%d,"playerCount":%d,"speciesDistribution":%s,"dietTypes":%s}',
+        stats.timestamp,
+        stats.playerCount,
+        encodeCountMap(stats.speciesDistribution),
+        encodeCountMap(stats.dietTypes)
+    )
 end
 
 local function collectServerStats()
     if not config.enabled then return end
-    
-    local players = enumerateOnlinePlayers()
-    
-    local stats = {
-        timestamp = os.time(),
-        playerCount = #players,
-        speciesDistribution = {},
-        dietTypes = {
-            carnivore = 0,
-            herbivore = 0,
-            omnivore = 0,
-            unknown = 0
-        },
-        speciesCount = {}
-    }
-    
-    -- Count players by species and diet type
-    for _, p in ipairs(players) do
-        if p.pawn ~= nil then
-            local species = getPlayerSpecies(p.pawn)
-            local diet = getPlayerDiet(p.pawn)
-            
-            -- Update species count
-            if stats.speciesCount[species] == nil then
-                stats.speciesCount[species] = 0
-            end
-            stats.speciesCount[species] = stats.speciesCount[species] + 1
-            
-            -- Update species distribution for the UI
-            if stats.speciesDistribution[species] == nil then
-                stats.speciesDistribution[species] = 0
-            end
-            stats.speciesDistribution[species] = stats.speciesDistribution[species] + 1
-            
-            -- Count diet types (simplified)
-            if diet == "Carnivore" then
-                stats.dietTypes.carnivore = stats.dietTypes.carnivore + 1
-            elseif diet == "Herbivore" then
-                stats.dietTypes.herbivore = stats.dietTypes.herbivore + 1
-            elseif diet == "Omnivore" then
-                stats.dietTypes.omnivore = stats.dietTypes.omnivore + 1
-            else
-                stats.dietTypes.unknown = stats.dietTypes.unknown + 1
-            end
-        end
-    end
-    
-    -- Convert to JSON and append to stats file for the bot to read
-    local jsonStats = string.format(
-        '{"timestamp":%d,"playerCount":%d,"speciesDistribution":%s,"dietTypes":%s,"speciesCount":%s}',
-        stats.timestamp,
-        stats.playerCount,
-        encodeCountMap(stats.speciesDistribution),
-        encodeCountMap(stats.dietTypes),
-        encodeCountMap(stats.speciesCount)
-    )
-
-    appendLine(STATS_FILE, jsonStats)
+    appendLine(STATS_FILE, statsToJson(collectStatsSnapshot()))
 end
 
 -- ============================================================
--- IPC endpoint for Discord bot to get current stats
--- This is the function that will be called by CommandBridge
+-- IPC — serve server_stats requests routed from CommandBridge
 -- ============================================================
 
-function GetServerStats()
-    -- For now, we'll return a simplified version that can be read by the Discord bot
-    -- In practice, the bot would read from the NDJSON file directly
-    local players = enumerateOnlinePlayers()
-    
-    local stats = {
-        timestamp = os.time(),
-        playerCount = #players,
-        speciesDistribution = {},
-        dietTypes = {
-            carnivore = 0,
-            herbivore = 0,
-            omnivore = 0,
-            unknown = 0
-        },
-        speciesCount = {}
-    }
-    
-    -- Count players by species and diet type
-    for _, p in ipairs(players) do
-        if p.pawn ~= nil then
-            local species = getPlayerSpecies(p.pawn)
-            local diet = getPlayerDiet(p.pawn)
-            
-            -- Update species count
-            if stats.speciesCount[species] == nil then
-                stats.speciesCount[species] = 0
-            end
-            stats.speciesCount[species] = stats.speciesCount[species] + 1
-            
-            -- Update species distribution for the UI
-            if stats.speciesDistribution[species] == nil then
-                stats.speciesDistribution[species] = 0
-            end
-            stats.speciesDistribution[species] = stats.speciesDistribution[species] + 1
-            
-            -- Count diet types (simplified)
-            if diet == "Carnivore" then
-                stats.dietTypes.carnivore = stats.dietTypes.carnivore + 1
-            elseif diet == "Herbivore" then
-                stats.dietTypes.herbivore = stats.dietTypes.herbivore + 1
-            elseif diet == "Omnivore" then
-                stats.dietTypes.omnivore = stats.dietTypes.omnivore + 1
-            else
-                stats.dietTypes.unknown = stats.dietTypes.unknown + 1
-            end
+local function emitIpcResult(id, steam, ok, msg)
+    local line = string.format(
+        '{"id":"%s","ts":%d,"source":"ServerStats","steam":"%s","ok":%s,"msg":"%s"}',
+        jsonEscape(tostring(id or "")), os.time(), jsonEscape(tostring(steam or "")),
+        tostring(ok == true), jsonEscape(msg or "")
+    )
+    appendLine(RESULTS_FILE, line)
+end
+
+local function pollInbox()
+    if not fileExists(INBOX_PATH) then return end
+    local stash = INBOX_PATH .. ".processing"
+    os.remove(stash)
+    os.rename(INBOX_PATH, stash)
+    local body = readAll(stash)
+    if body == nil or body == "" then os.remove(stash); return end
+
+    for line in body:gmatch("[^\n]+") do
+        local id    = jsonReadString(line, "id")
+        local steam = jsonReadString(line, "steam") or ""
+
+        local callOk, stats = pcall(collectStatsSnapshot)
+        if callOk then
+            emitIpcResult(id, steam, true, statsToJson(stats))
+        else
+            emitIpcResult(id, steam, false, "error: " .. tostring(stats))
         end
     end
-    
-    -- Return JSON string for the bot to parse
-    local jsonResult = string.format(
-        '{"timestamp":%d,"playerCount":%d,"speciesDistribution":%s,"dietTypes":%s,"speciesCount":%s}',
-        stats.timestamp,
-        stats.playerCount,
-        encodeCountMap(stats.speciesDistribution),
-        encodeCountMap(stats.dietTypes),
-        encodeCountMap(stats.speciesCount)
-    )
 
-    return jsonResult
+    os.remove(stash)
 end
 
 -- ============================================================
@@ -416,6 +360,7 @@ if LoopInGameThreadWithDelay ~= nil then
 
     LoopInGameThreadWithDelay(POLL_INTERVAL_MS, function()
         safeCall("collectServerStats", collectServerStats)
+        safeCall("pollInbox", pollInbox)
 
         local reload = consumeFlag(RELOAD_FLAG)
         if reload ~= nil and RestartCurrentMod ~= nil then

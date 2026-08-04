@@ -1,6 +1,7 @@
 import { Listener } from "../../classes/index.js";
 import { registerCommands } from "../../utils/index.js";
 import { startHeatmapScheduler } from "../../heatmap/index.js";
+import { startServerStatsScheduler } from "../../serverStats/index.js";
 import type { FinalAncestorClient } from "../../classes/Client.js";
 
 export default new Listener({
@@ -11,6 +12,7 @@ export default new Listener({
 		c.logger.success(`Logged in as ${c.user?.tag}`);
 		c.ipc.start();
 		startHeatmapScheduler(c);
+		startServerStatsScheduler(c);
 		void registerCommands([...c.commands.values()], c.logger);
 	},
 });

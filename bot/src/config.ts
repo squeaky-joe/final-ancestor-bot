@@ -28,6 +28,11 @@ export const config = {
 		pollIntervalMs: 250,
 	},
 
+	serverStats: {
+		// How often the bot refreshes the posted server-stats embed (ms)
+		intervalMs: 2 * 60 * 1000,
+	},
+
 	heatmap: {
 		positionsFile: () =>
 			path.join(

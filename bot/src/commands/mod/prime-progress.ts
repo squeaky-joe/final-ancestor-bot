@@ -37,7 +37,6 @@ export default new Command({
 					console.error("Failed to parse prime progress data:", e);
 					await interaction.editReply({
 						content: "Error parsing progress data.",
-						ephemeral: true,
 					});
 					return;
 				}
@@ -79,7 +78,6 @@ export default new Command({
 			} else {
 				await interaction.editReply({
 					content: `Failed to get prime progress: ${result.msg || "Unknown error"}`,
-					ephemeral: true,
 				});
 			}
 		} catch (e) {
