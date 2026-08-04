@@ -17,3 +17,11 @@ bot/src/db/migrations/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+.beads/
+
+# AI agent tooling — local only, not shared via git
+.agents/
+.claude/
+.codex/
+AGENTS.md
+CLAUDE.md
