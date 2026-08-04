@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "notifyEachCondition": true,
+  "eligibilityThreshold": 5,
+  "enableDetailedTracking": true,
+  "showProgressInChat": false
+}

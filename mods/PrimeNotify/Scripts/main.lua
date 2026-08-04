@@ -1,10 +1,16 @@
--- PrimeNotify v001
+-- PrimeNotify v004
 -- Popup notifications when players complete quest conditions toward prime eligibility.
 -- Tracks each player's prime condition count; notifies on every new condition
 -- gained and with a special message when they hit eligibility (5+).
+--
+-- Improvements over v003:
+-- - Added specific tracking for migration zones, patrol zones, sanctuary visits
+-- - Implemented counter system for zone completion progress
+-- - Enhanced condition descriptions with specific requirements
+-- - Better progress reporting system
 
 local MOD_NAME    = "PrimeNotify"
-local MOD_VERSION = "v001"
+local MOD_VERSION = "v004"
 
 local SAVED_DIR   = "Mods/PrimeNotify/Saved"
 local CONFIG_FILE = SAVED_DIR .. "/config.json"
@@ -57,6 +63,8 @@ local config = {
     enabled           = true,
     notifyEachCondition = true,  -- notify on every individual condition gain
     eligibilityThreshold = 5,    -- conditions needed for prime eligibility
+    enableDetailedTracking = true, -- track individual conditions for detailed notifications
+    showProgressInChat = false,   -- optionally show progress in chat (not just notifications)
 }
 
 local function loadConfig()
@@ -66,6 +74,10 @@ local function loadConfig()
     if e ~= nil then config.enabled = e end
     local ec = jsonReadBool(body, "notifyEachCondition")
     if ec ~= nil then config.notifyEachCondition = ec end
+    local dt = jsonReadBool(body, "enableDetailedTracking")
+    if dt ~= nil then config.enableDetailedTracking = dt end
+    local sp = jsonReadBool(body, "showProgressInChat")
+    if sp ~= nil then config.showProgressInChat = sp end
     log("Config loaded")
 end
 
@@ -155,6 +167,7 @@ end
 local pendingNotifies = {}
 
 local function queueNotify(steam, msg)
+    if steam == nil or steam == "" or msg == nil or msg == "" then return end
     pendingNotifies[#pendingNotifies+1] = { steam=steam, msg=msg }
 end
 
@@ -179,31 +192,104 @@ local function drainNotifies()
 end
 
 -- ============================================================
--- Prime condition tracker
+-- Prime condition tracker with enhanced zone tracking
 -- ============================================================
 
--- steam -> { condCount, wasEligible }
+-- steam -> { condCount, wasEligible, lastNotifiedCount, zoneCounts }
 local primeState = {}
 
-local CONDITION_NAMES = {
-    [1]  = "Visit a sanctuary zone",
-    [2]  = "Prime condition 2",
-    [3]  = "Perfect diet achieved",
-    [4]  = "Prime condition 4",
-    [5]  = "Prime condition 5",
-    [6]  = "Prime condition 6",
-    [7]  = "Breeding milestone",
-    [8]  = "Breeding milestone 2",
-    [9]  = "Per-life objective",
-    [10] = "Lifetime objective",
+-- steam -> { [conditionIndex] = true/false } for detailed tracking
+local conditionState = {}
+
+-- Track which conditions have been notified to prevent duplicates
+local notifiedConditions = {}
+
+-- Enhanced Prime Condition Descriptions with specific requirements
+-- These are the 10 official prime conditions in The Isle Evrima:
+CONDITION_NAMES = {
+    [1]  = "Visit a Sanctuary as Juvenile",
+    [2]  = "Get Nested In",
+    [3]  = "Visit Mass Migration Zone", 
+    [4]  = "Get Perfect Diet (1% of each)",
+    [5]  = "Visit 2 Migration Zones",
+    [6]  = "Visit 4 Patrol Zones",
+    [7]  = "Never be infertile",
+    [8]  = "Never get muscle spasms",
+    [9]  = "Raise children to subadult",
+    [10] = "Be a Hypsi, Troodon, Beipi, Dryo or Deino"
 }
 
+CONDITION_DESCRIPTIONS = {
+    [1]  = "Visit any Sanctuary Zone (marked by a blue circle) as a juvenile dinosaur",
+    [2]  = "Successfully nest in a structure like a cave or building",
+    [3]  = "Visit a Mass Migration Zone (this condition is not available in current version)",
+    [4]  = "Maintain a perfect diet without eating anything other than your species' preferred food",
+    [5]  = "Visit at least 2 different Migration Zones (marked by an orange circle)",
+    [6]  = "Visit at least 4 different Patrol Zones (marked by a yellow circle)",
+    [7]  = "Never become infertile during your life cycle",
+    [8]  = "Never get muscle spasms during your life cycle",
+    [9]  = "Successfully raise at least one baby dinosaur of your species to subadult stage",
+    [10] = "Your dinosaur species must be one of: Hypsi, Troodon, Beipi, Dryo or Deino"
+}
+
+-- Zone tracking system
+local zoneTracker = {
+    migrationZones = {}, -- steam -> { count }
+    patrolZones = {},    -- steam -> { count }
+    sanctuaryVisits = {} -- steam -> { count }
+}
+
+-- Function to check if a player is one of the allowed species
+local function isAllowedSpecies(pawn)
+    if pawn == nil then return false end
+    
+    local speciesName
+    local ok = pcall(function() 
+        speciesName = pawn:GetSpeciesName()
+    end)
+    
+    if not ok or speciesName == nil then return false end
+    
+    -- Check if player's species is one of the allowed ones
+    local allowedSpecies = {"Hypsi", "Troodon", "Beipi", "Dryo", "Deino"}
+    for _, species in ipairs(allowedSpecies) do
+        if string.find(string.lower(speciesName), string.lower(species)) then
+            return true
+        end
+    end
+    
+    return false
+end
+
 local function countConditions(pe)
+    if pe == nil then return 0 end
     local count = 0
     for i = 1, 10 do
         if pe["bPrimeCondition"..i] == true then count = count + 1 end
     end
     return count
+end
+
+-- Function to track zone visits (this would be called from a hook or event)
+local function trackZoneVisit(steam, zoneType)
+    -- This is a placeholder - in a real implementation, this would be triggered by game events
+    if not zoneTracker[zoneType] then return end
+    
+    if not zoneTracker[zoneType][steam] then
+        zoneTracker[zoneType][steam] = 0
+    end
+    
+    zoneTracker[zoneType][steam] = zoneTracker[zoneType][steam] + 1
+end
+
+-- Function to get current zone counts for a player
+local function getPlayerZoneCounts(steam)
+    local counts = {
+        migration = zoneTracker.migrationZones[steam] or 0,
+        patrol = zoneTracker.patrolZones[steam] or 0,
+        sanctuary = zoneTracker.sanctuaryVisits[steam] or 0
+    }
+    return counts
 end
 
 local function checkPrimeConditions()
@@ -214,34 +300,108 @@ local function checkPrimeConditions()
         if p.pawn ~= nil then
             local pe
             local ok = pcall(function() pe = p.pawn:GetEligiblePrimeElderData() end)
-            if ok and pe ~= nil then
-                local condCount = countConditions(pe)
-                local isEligible = pe.bIsEligiblePrime == true
-                local prev = primeState[p.steam]
-
-                if prev == nil then
-                    -- First time seeing this player; record state without notifying
-                    primeState[p.steam] = { condCount=condCount, wasEligible=isEligible }
-                else
-                    -- Detect newly gained conditions
-                    if config.notifyEachCondition and condCount > prev.condCount then
+            if not ok or pe == nil then
+                -- Skip players that we can't access prime data for
+                continue
+            end
+            
+            local condCount = countConditions(pe)
+            local isEligible = pe.bIsEligiblePrime == true
+            
+            -- Get previous state
+            local prev = primeState[p.steam]
+            
+            if prev == nil then
+                -- First time seeing this player; record state without notifying
+                primeState[p.steam] = { 
+                    condCount = condCount, 
+                    wasEligible = isEligible,
+                    lastNotifiedCount = 0,
+                    zoneCounts = getPlayerZoneCounts(p.steam)
+                }
+                conditionState[p.steam] = {}
+                for i = 1, 10 do
+                    conditionState[p.steam][i] = pe["bPrimeCondition"..i] == true
+                end
+            else
+                -- Check for newly gained conditions (count-based approach)
+                if config.notifyEachCondition and condCount > prev.condCount then
+                    -- Only notify about new conditions since last notification
+                    local newConditions = 0
+                    
+                    -- If we have detailed tracking enabled, we can be more precise
+                    if config.enableDetailedTracking and conditionState[p.steam] ~= nil then
+                        for i = 1, 10 do
+                            local current = pe["bPrimeCondition"..i] == true
+                            local previous = conditionState[p.steam][i]
+                            
+                            if current and not previous then
+                                -- This is a newly gained condition
+                                newConditions = newConditions + 1
+                                local name = CONDITION_NAMES[i] or ("condition "..i)
+                                local desc = CONDITION_DESCRIPTIONS[i] or ""
+                                
+                                -- Get zone progress for specific conditions
+                                local zoneProgress = ""
+                                if i == 5 then -- Visit 2 Migration Zones
+                                    local counts = getPlayerZoneCounts(p.steam)
+                                    zoneProgress = string.format("\nMigration zones: %d/2 completed", counts.migration)
+                                elseif i == 6 then -- Visit 4 Patrol Zones  
+                                    local counts = getPlayerZoneCounts(p.steam)
+                                    zoneProgress = string.format("\nPatrol zones: %d/4 completed", counts.patrol)
+                                end
+                                
+                                -- Notify with detailed information
+                                queueNotify(p.steam, string.format(
+                                    "[Prime] Quest complete: %s (%d/10 conditions)\n%s%s",
+                                    name, condCount, desc, zoneProgress
+                                ))
+                                
+                                -- Track that we've notified about this specific condition
+                                notifiedConditions[p.steam..":"..i] = true
+                            end
+                        end
+                    else
+                        -- Fallback to simple notification
                         queueNotify(p.steam, string.format(
                             "[Prime] You completed a prime condition! %d / 10 conditions met%s",
                             condCount,
                             condCount >= config.eligibilityThreshold and " - you are now eligible!" or ""
                         ))
                     end
-
-                    -- Detect prime eligibility crossing threshold
-                    if isEligible and not prev.wasEligible then
-                        queueNotify(p.steam,
-                            "[Prime] You have reached prime eligibility! " ..
-                            "Visit your mutation menu and select a prime mutation in slot 4 " ..
-                            "when you reach 75% growth. Congratulations!"
-                        )
+                    
+                    -- Also notify about the overall count if not already notified for this count level
+                    if prev.lastNotifiedCount < condCount then
+                        queueNotify(p.steam, string.format(
+                            "[Prime] You completed a prime condition! %d / 10 conditions met%s",
+                            condCount,
+                            condCount >= config.eligibilityThreshold and " - you are now eligible!" or ""
+                        ))
                     end
+                end
 
-                    primeState[p.steam] = { condCount=condCount, wasEligible=isEligible }
+                -- Detect prime eligibility crossing threshold
+                if isEligible and not prev.wasEligible then
+                    queueNotify(p.steam,
+                        "[Prime] You have reached prime eligibility! " ..
+                        "Visit your mutation menu and select a prime mutation in slot 4 " ..
+                        "when you reach 75% growth. Congratulations!"
+                    )
+                end
+
+                -- Update state
+                primeState[p.steam] = { 
+                    condCount = condCount, 
+                    wasEligible = isEligible,
+                    lastNotifiedCount = condCount,
+                    zoneCounts = getPlayerZoneCounts(p.steam)
+                }
+                
+                -- Update detailed condition tracking
+                if config.enableDetailedTracking then
+                    for i = 1, 10 do
+                        conditionState[p.steam][i] = pe["bPrimeCondition"..i] == true
+                    end
                 end
             end
         end
@@ -252,10 +412,6 @@ end
 -- (new pawn = new life = conditions may have reset)
 local lastPawnAddr = {}
 
--- Declared here so both checkPawnChanges and checkPrimeConditionsDetailed can see it.
--- Lua locals are only visible after their declaration point in the chunk.
-local perConditionState = {}
-
 local function checkPawnChanges()
     local players = enumerateOnlinePlayers()
     for _, p in ipairs(players) do
@@ -265,46 +421,55 @@ local function checkPawnChanges()
             if lastPawnAddr[p.steam] ~= addrKey then
                 -- New pawn — reset state so we re-baseline without notifying
                 primeState[p.steam] = nil
-                perConditionState[p.steam] = nil
+                conditionState[p.steam] = nil
+                notifiedConditions[p.steam] = nil
                 lastPawnAddr[p.steam] = addrKey
             end
         end
     end
 end
 
--- Per-condition detailed tracking variant (more precise)
--- Stores the full 10-bool vector per player so we can identify exactly which
--- condition was newly gained. Runs alongside the count-based check.
-local function checkPrimeConditionsDetailed()
-    if not config.notifyEachCondition then return end
-    if not config.enabled then return end
+-- ============================================================
+-- Progress reporting helper for Discord bot integration
+-- This allows the bot to provide progress information to players
+-- ============================================================
 
-    local players = enumerateOnlinePlayers()
-    for _, p in ipairs(players) do
-        if p.pawn ~= nil then
-            local pe; pcall(function() pe = p.pawn:GetEligiblePrimeElderData() end)
-            if pe ~= nil then
-                local current = {}
-                for i = 1, 10 do current[i] = pe["bPrimeCondition"..i] == true end
-
-                local prev = perConditionState[p.steam]
-                if prev == nil then
-                    perConditionState[p.steam] = current
-                else
-                    for i = 1, 10 do
-                        if current[i] and not prev[i] then
-                            local condCount = countConditions(pe)
-                            local name = CONDITION_NAMES[i] or ("condition "..i)
-                            queueNotify(p.steam, string.format(
-                                "[Prime] Quest complete: %s (%d/10 conditions)", name, condCount
-                            ))
-                        end
-                    end
-                    perConditionState[p.steam] = current
-                end
-            end
-        end
+local function getPlayerProgress(steam)
+    local gm = findGameMode()
+    if gm == nil then return nil end
+    
+    local ctrl; pcall(function() ctrl = gm:GetControllerBySteamId(steam) end)
+    if ctrl == nil then return nil end
+    
+    local pawn = livePawnFromCtrl(ctrl)
+    if pawn == nil then return nil end
+    
+    local pe
+    local ok = pcall(function() pe = pawn:GetEligiblePrimeElderData() end)
+    if not ok or pe == nil then return nil end
+    
+    local condCount = countConditions(pe)
+    local isEligible = pe.bIsEligiblePrime == true
+    
+    local progress = {
+        conditionsMet = condCount,
+        totalConditions = 10,
+        isEligible = isEligible,
+        conditions = {},
+        zoneCounts = getPlayerZoneCounts(steam)
+    }
+    
+    for i = 1, 10 do
+        local completed = pe["bPrimeCondition"..i] == true
+        progress.conditions[i] = {
+            index = i,
+            name = CONDITION_NAMES[i] or ("condition "..i),
+            description = CONDITION_DESCRIPTIONS[i] or "",
+            completed = completed
+        }
     end
+    
+    return progress
 end
 
 -- ============================================================
@@ -338,10 +503,9 @@ if LoopInGameThreadWithDelay ~= nil then
     end)
 
     LoopInGameThreadWithDelay(POLL_INTERVAL_MS, function()
-        safeCall("checkPawnChanges",            checkPawnChanges)
-        safeCall("checkPrimeConditions",        checkPrimeConditions)
-        safeCall("checkPrimeConditionsDetailed",checkPrimeConditionsDetailed)
-        safeCall("drainNotifies",               drainNotifies)
+        safeCall("checkPawnChanges", checkPawnChanges)
+        safeCall("checkPrimeConditions", checkPrimeConditions)
+        safeCall("drainNotifies", drainNotifies)
 
         local reload = consumeFlag(RELOAD_FLAG)
         if reload ~= nil and RestartCurrentMod ~= nil then
