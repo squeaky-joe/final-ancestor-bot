@@ -7,3 +7,4 @@ DinoStorage : 1
 SkinMod : 1
 BodyDrop : 1
 PrimeNotify : 1
+ServerStats : 1

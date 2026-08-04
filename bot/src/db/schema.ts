@@ -69,6 +69,14 @@ export const guildConfig = pgTable("guild_config", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Server stats configuration
+export const serverStatsConfig = pgTable("server_stats_config", {
+	id: text("id").primaryKey(),
+	channelId: text("channel_id").notNull(),
+	messageId: text("message_id"),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ---- Types ----
 
 export interface SkinColorRgba {
